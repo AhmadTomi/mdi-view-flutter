@@ -2,7 +2,7 @@
 
 A Flutter package that provides a Multiple Document Interface (MDI) experience, allowing you to manage multiple floating, resizable, and maximizable windows within your application.
 
-![MDI View Preview](./preview.gif)
+![MDI View Preview](./src/preview.gif)
 
 <p align="center">
   <img src="./preview.gif" alt="Alt Text" width="500"/>
