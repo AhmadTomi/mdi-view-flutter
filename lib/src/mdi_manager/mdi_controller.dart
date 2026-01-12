@@ -181,6 +181,7 @@ class MdiController extends ChangeNotifier {
       onFocusChange: (hasFocus) {
         if (newController.isDisposed) return;
         _onWindowChangeFocus(hasFocus, newController);
+        if(hasFocus) tabMenuController.notifyListeners();
       },
       onPositionChange: (position, size) {
         _debouncer.run(() {
