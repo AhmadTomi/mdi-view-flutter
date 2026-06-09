@@ -1,132 +1,125 @@
 part of 'mdi_tab.dart';
 
+/// Manages the tab strip state: ordered list of window controllers,
+/// scroll position, and scroll-arrow visibility.
+///
+/// This controller does **not** own the [ResizeableWindowController] instances;
+/// it only holds references.  Ownership stays with [MdiController].
 class MdiTabController extends ChangeNotifier {
+  // ── Scroll ────────────────────────────────────────────────────────────────
+
   final ScrollController tabScrollController = ScrollController();
-  final Map<String, ResizeableWindowController> _tabControllers = {};
+
+  static const double _kScrollStep = 80.0;
+
+  // ── Tab order map ─────────────────────────────────────────────────────────
+
+  /// Ordered map — insertion order == tab order.
+  final Map<String, ResizeableWindowController> _tabs = {};
+
   List<ResizeableWindowController> get tabControllers =>
-      _tabControllers.values.toList();
-  int get length => _tabControllers.length;
+      List.unmodifiable(_tabs.values);
 
-  bool _showLeftButton = false;
-  bool _showRightButton = false;
-  bool _showNavTabButton = false;
-  final double _scrollAmount = 80.0;
-  final double menuWidth = 60.0;
+  int get length => _tabs.length;
 
-  bool get showLeftButton => _showLeftButton;
-  bool get showRightButton => _showRightButton;
-  bool get showTabNavButton => _showNavTabButton;
+  // ── Navigation button visibility ──────────────────────────────────────────
+
+  bool _showLeft = false;
+  bool _showRight = false;
+  bool _showNav = false;
+
+  bool get showLeftButton => _showLeft;
+  bool get showRightButton => _showRight;
+  bool get showTabNavButton => _showNav;
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   void init() {
-    tabScrollController.addListener(_scrollListener);
+    tabScrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    tabScrollController.removeListener(_scrollListener);
+    tabScrollController.removeListener(_onScroll);
+    tabScrollController.dispose();
     super.dispose();
   }
 
-  // Method to add a tab
+  // ── Tab mutations ─────────────────────────────────────────────────────────
+
+  /// Registers a tab.  No-op if [tag] already exists.
   void addTab(String tag, ResizeableWindowController controller) {
-    if (!_tabControllers.containsKey(tag)) {
-      _tabControllers[tag] = controller;
-      // We don't notify listeners here because MdiController
-      // will notify its own listeners (MdiManager)
-    }
+    if (_tabs.containsKey(tag)) return;
+    _tabs[tag] = controller;
+    // Notification is the caller's responsibility (MdiController will notify).
   }
 
-  // Method to remove a tab
-  void removeTab(String tag) {
-    if (_tabControllers.containsKey(tag)) {
-      _tabControllers.remove(tag);
-      // We don't notify listeners here, MdiController will
-    }
-  }
+  /// Removes a tab.  No-op if [tag] is absent.
+  void removeTab(String tag) => _tabs.remove(tag);
 
-  // Method to reorder tabs
+  /// Reorders tabs from [oldIndex] to [newIndex] (standard Flutter semantics).
   void reorderTabs(int oldIndex, int newIndex) {
+    final len = _tabs.length;
     if (oldIndex < 0 ||
-        oldIndex >= _tabControllers.length ||
+        oldIndex >= len ||
         newIndex < 0 ||
-        newIndex > _tabControllers.length || // Allow newIndex == length
+        newIndex > len ||
         oldIndex == newIndex) {
       return;
     }
-    final List<ResizeableWindowController> tempControllers = _tabControllers
-        .values
-        .toList();
 
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
-    final ResizeableWindowController item = tempControllers.removeAt(oldIndex);
-    tempControllers.insert(newIndex, item);
+    final list = _tabs.values.toList();
+    final effectiveNew = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    list.insert(effectiveNew, list.removeAt(oldIndex));
 
-    _tabControllers.clear();
-    for (final controller in tempControllers) {
-      _tabControllers[controller.tag] = controller;
-    }
-    // Notify listeners here because this change *only* affects the tab widget
+    _tabs
+      ..clear()
+      ..addEntries(list.map((c) => MapEntry(c.tag, c)));
+
     notifyListeners();
   }
 
-  // CODE TAB WIDGET
-  void _scrollListener() {
-    tabScrollCheck();
+  // ── Scroll helpers ────────────────────────────────────────────────────────
+
+  void scrollLeft() => _scrollBy(-_kScrollStep);
+  void scrollRight() => _scrollBy(_kScrollStep);
+
+  void _scrollBy(double delta) {
+    if (!tabScrollController.hasClients) return;
+    final pos = tabScrollController.position;
+    tabScrollController.animateTo(
+      (pos.pixels + delta).clamp(pos.minScrollExtent, pos.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
+  /// Recalculates button visibility; notifies only when the values change.
   void tabScrollCheck() {
-    // Store old values to check for a change
-    final bool oldShowLeft = _showLeftButton;
-    final bool oldShowRight = _showRightButton;
-    final bool oldShowNav = _showNavTabButton;
+    final bool prevLeft = _showLeft;
+    final bool prevRight = _showRight;
+    final bool prevNav = _showNav;
 
     if (!tabScrollController.hasClients ||
         tabScrollController.position.maxScrollExtent == 0.0) {
-      // No scroll, so hide all buttons
-      _showLeftButton = false;
-      _showRightButton = false;
-      _showNavTabButton = false;
+      _showLeft = false;
+      _showRight = false;
+      _showNav = false;
     } else {
-      // Has scroll, check positions
-      double maxScroll = tabScrollController.position.maxScrollExtent;
-      double currentScroll = tabScrollController.position.pixels;
-      double minScroll = tabScrollController.position.minScrollExtent;
-
-      _showLeftButton = currentScroll > minScroll;
-      _showRightButton = currentScroll < maxScroll;
-      _showNavTabButton = (_showRightButton || _showLeftButton);
+      final pos = tabScrollController.position;
+      _showLeft = pos.pixels > pos.minScrollExtent;
+      _showRight = pos.pixels < pos.maxScrollExtent;
+      _showNav = _showLeft || _showRight;
     }
 
-    if (oldShowLeft != _showLeftButton ||
-        oldShowRight != _showRightButton ||
-        oldShowNav != _showNavTabButton) {
+    if (_showLeft != prevLeft ||
+        _showRight != prevRight ||
+        _showNav != prevNav) {
       notifyListeners();
     }
   }
 
-  void scrollLeft() {
-    double newOffset = (tabScrollController.offset - _scrollAmount).clamp(
-      tabScrollController.position.minScrollExtent,
-      tabScrollController.position.maxScrollExtent,
-    );
-    tabScrollController.animateTo(
-      newOffset,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-  }
+  // ── Private ───────────────────────────────────────────────────────────────
 
-  void scrollRight() {
-    double newOffset = (tabScrollController.offset + _scrollAmount).clamp(
-      tabScrollController.position.minScrollExtent,
-      tabScrollController.position.maxScrollExtent,
-    );
-    tabScrollController.animateTo(
-      newOffset,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
-  }
+  void _onScroll() => tabScrollCheck();
 }

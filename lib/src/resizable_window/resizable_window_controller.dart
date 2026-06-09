@@ -1,40 +1,126 @@
 part of '../../mdi_view.dart';
 
+// ── Callback typedefs ─────────────────────────────────────────────────────────
+
+typedef _ScreenAction = void Function(void Function(Size screenSize) action);
+typedef _PositionChangeCallback = void Function(Size position, Size size);
+typedef _ArgumentUpdateCallback = void Function(Map<String, dynamic> argument);
+
+// ── Controller ────────────────────────────────────────────────────────────────
+
+/// Manages the runtime state (position, size, focus, maximization) for a
+/// single MDI window.
+///
+/// Separation of concerns:
+///   • All geometry mutation lives here, not in the widget.
+///   • Callbacks decouple this controller from [MdiController] — the parent
+///     wires them up via [initAction]; this class has no import dependency on it.
+///   • [ParameterWindow] stays a pure value object; this class owns the
+///     mutable counterpart fields (x, y, currentWidth, currentHeight).
 class ResizeableWindowController extends ChangeNotifier {
+  // ── Focus ─────────────────────────────────────────────────────────────────
+
   final FocusScopeNode focusScopeNode;
+
+  // ── Content builder ───────────────────────────────────────────────────────
+
+  /// Called once and cached in [ResizableWindowState] — must be stable
+  /// across rebuilds (identity equality respected by [AnimatedBuilder]).
   final Widget Function(ResizeableWindowController controller) child;
 
-  // Callbacks
+  // ── Geometry ──────────────────────────────────────────────────────────────
+
+  double x;
+  double y;
+  double currentWidth;
+  double currentHeight;
+
+  // ── State flags ───────────────────────────────────────────────────────────
+
+  bool isMaximized = false;
+
+  /// Snapshot of size before maximisation (restored on un-maximize).
+  Size _preMaximizeSize = Size.zero;
+
+  /// Snapshot of position before maximisation.
+  Size _preMaximizePosition = Size.zero;
+
+  /// Last known screen size — updated by [MdiManager] on layout changes.
+  Size screenSize = Size.zero;
+
+  // ── Snap behaviour ────────────────────────────────────────────────────────
+
+  final double snapRange;
+  final double widgetPadding;
+
+  // ── Callbacks (wired by MdiController.initAction) ─────────────────────────
+
   void Function(bool hasFocus)? onFocusChange;
   void Function(String tag)? _onClose;
-  void Function(Size position, Size size)? _onPositionChange;
-  void Function(void Function(Size screenSize) action)? _toggleMaximize;
-  void Function(Map<String, dynamic> argument)? _onArgumentUpdate;
+  _ScreenAction? _toggleMaximize;
+  _PositionChangeCallback? _onPositionChange;
+  _ArgumentUpdateCallback? _onArgumentUpdate;
+
+  // ── Private ───────────────────────────────────────────────────────────────
 
   final ParameterWindow _parameter;
+  Map<String, dynamic> _argument;
+
+  bool _isDisposed = false;
+
+  // Double-tap detection state
+  int _lastTapTimestamp = 0;
+  int _consecutiveTaps = 1;
+
+  // ── Constructor ───────────────────────────────────────────────────────────
 
   ResizeableWindowController({
     required ParameterWindow parameter,
     double? snapRange,
-    double? widgetPadding,
     required this.child,
-  }) : snapRange = snapRange ?? 30,
-       widgetPadding = 0.0,
-       _parameter = parameter,
-       focusScopeNode = FocusScopeNode() {
-    x = parameter.x;
-    y = parameter.y;
-    currentHeight = parameter.currentHeight;
-    currentWidth = parameter.currentWidth;
-    _argument = parameter.argument;
-  }
+  })  : snapRange = snapRange ?? 30.0,
+        widgetPadding = 0.0,
+        _parameter = parameter,
+        _argument = Map<String, dynamic>.of(parameter.argument),
+        focusScopeNode = FocusScopeNode(),
+        x = parameter.x,
+        y = parameter.y,
+        currentWidth = parameter.currentWidth,
+        currentHeight = parameter.currentHeight;
+
+  // ── Public interface ──────────────────────────────────────────────────────
+
+  bool get isDisposed => _isDisposed;
+  bool get hasFocus => focusScopeNode.hasFocus;
+
+  String get tag => _parameter.tag;
+  String get title => _parameter.title;
+
+  double get xBound => x + currentWidth;
+  double get yBound => y + currentHeight;
+
+  Map<String, dynamic> get argument => Map.unmodifiable(_argument);
+
+  /// Snapshot of the current mutable state as an immutable [ParameterWindow].
+  ParameterWindow get parameterWindow => _parameter.copyWith(
+        x: x,
+        y: y,
+        currentHeight: currentHeight,
+        currentWidth: currentWidth,
+        argument: _argument,
+      );
+
+  /// Optional key-event handler installed by the content widget.
+  bool Function(KeyEvent event)? onKeyEvent;
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   void initAction({
     void Function(bool hasFocus)? onFocusChange,
     void Function(String tag)? onClose,
-    void Function(void Function(Size screenSize))? toggleMaximize,
-    void Function(Size position, Size size)? onPositionChange,
-    void Function(Map<String, dynamic> argument)? onArgumentUpdate,
+    _ScreenAction? toggleMaximize,
+    _PositionChangeCallback? onPositionChange,
+    _ArgumentUpdateCallback? onArgumentUpdate,
   }) {
     this.onFocusChange = onFocusChange;
     _onClose = onClose;
@@ -43,140 +129,39 @@ class ResizeableWindowController extends ChangeNotifier {
     _onArgumentUpdate = onArgumentUpdate;
   }
 
-  double x = 0;
-  double y = 0;
-  double currentHeight = 400;
-  double currentWidth = 400;
-  Map<String, dynamic>? _argument;
-
-  bool isMaximized = false;
-  Size lastSize = const Size(0, 0);
-  Size lastPosition = const Size(0, 0);
-  Size screenSize = const Size(0, 0);
-
-  bool _isDisposed = false;
-  bool get isDisposed => _isDisposed;
-
-  bool get hasFocus => focusScopeNode.hasFocus;
-  String get tag => _parameter.tag;
-  String get title => _parameter.title;
-
-  double get xBound => x + currentWidth;
-  double get yBound => y + currentHeight;
-
-  Map<String, dynamic>? get argument => _argument;
-
-  late final double snapRange;
-  late final double widgetPadding;
-
-  ParameterWindow get parameterWindow => _parameter.copyWith(
-    x: x,
-    y: y,
-    currentHeight: currentHeight,
-    currentWidth: currentWidth,
-    argument: _argument,
-  );
-
-  int _lastTap = 0;
-  int _consecutiveTaps = 1;
-
   @override
   void dispose() {
+    assert(!_isDisposed, 'dispose() called twice on $runtimeType($tag)');
     _isDisposed = true;
     focusScopeNode.dispose();
     super.dispose();
   }
 
-  void close() {
-    _onClose?.call(_parameter.tag);
-  }
+  // ── Actions ───────────────────────────────────────────────────────────────
 
-  void positionChangeAction() {
-    _onPositionChange?.call(Size(x, y), Size(currentWidth, currentHeight));
-  }
+  void close() => _onClose?.call(_parameter.tag);
 
   void requestFocus() {
-    if (focusScopeNode.hasFocus == false) {
+    if (!focusScopeNode.hasFocus) {
       focusScopeNode.requestScopeFocus();
     }
   }
 
-  void moveLeft() {
-    if (isMaximized) return;
-    x = max(
-      0,
-      _nearestMultiple(
-        x - ParameterWindow.defaultWidth,
-        ParameterWindow.defaultWidth,
-      ),
-    );
-    y = max(0, _nearestMultiple(y, ParameterWindow.defaultMinHeight));
-    notifyListeners();
-    positionChangeAction();
+  /// Fires after any drag/resize that should persist the new geometry.
+  void positionChangeAction() {
+    _onPositionChange?.call(Size(x, y), Size(currentWidth, currentHeight));
   }
 
-  void moveRight() {
-    if (isMaximized) return;
-    x = max(
-      0,
-      _nearestMultiple(
-        x + ParameterWindow.defaultWidth,
-        ParameterWindow.defaultWidth,
-      ),
-    );
-    y = max(0, _nearestMultiple(y, ParameterWindow.defaultMinHeight));
-    notifyListeners();
-    positionChangeAction();
-  }
-
-  void moveUp() {
-    if (isMaximized) return;
-    y = max(
-      0,
-      _nearestMultiple(
-        y - ParameterWindow.defaultMinHeight,
-        ParameterWindow.defaultMinHeight,
-      ),
-    );
-    x = max(0, _nearestMultiple(x, ParameterWindow.defaultWidth));
-    notifyListeners();
-    positionChangeAction();
-  }
-
-  void moveDown() {
-    if (isMaximized) return;
-    y = max(
-      0,
-      _nearestMultiple(
-        y + ParameterWindow.defaultMinHeight,
-        ParameterWindow.defaultMinHeight,
-      ),
-    );
-    x = max(0, _nearestMultiple(x, ParameterWindow.defaultWidth));
-    notifyListeners();
-    positionChangeAction();
-  }
-
-  double _nearestMultiple(double number, double n) {
-    double lowerMultiple = (number ~/ n) * n;
-    double higherMultiple = lowerMultiple + n;
-    return (number - lowerMultiple < higherMultiple - number)
-        ? lowerMultiple
-        : higherMultiple;
-  }
-
-  void setArgument(Map<String, dynamic> argument) {
-    argument.forEach((key, value) {
-      _argument?[key] = value;
-    });
-    _onArgumentUpdate?.call(_argument ?? {});
+  void setArgument(Map<String, dynamic> updates) {
+    _argument = {..._argument, ...updates};
+    _onArgumentUpdate?.call(_argument);
   }
 
   void updateParameter({
     required double x,
     required double y,
-    required currentHeight,
-    required currentWidth,
+    required double currentHeight,
+    required double currentWidth,
   }) {
     this.x = x;
     this.y = y;
@@ -186,304 +171,316 @@ class ResizeableWindowController extends ChangeNotifier {
     positionChangeAction();
   }
 
-  void checkSnap(Size current, Size snapN) {
-    // calculate nearest snap area;
-    final snapWidth = _nearestMultiple(current.width, snapN.width);
-    final snapHeight = _nearestMultiple(current.height, snapN.height);
+  // ── Maximize / restore ────────────────────────────────────────────────────
 
-    // function to check condition
-    bool isInRange(double value, double target) {
-      return (value - snapRange) < target && target < (value + snapRange);
-    }
+  /// Toggles or forces the maximised state.
+  ///
+  /// [isMaximize] — `null` means toggle, `true`/`false` forces the state.
+  void toggleMaximize(Size screen, [bool? isMaximize]) {
+    final targetState = isMaximize ?? !isMaximized;
+    if (targetState == isMaximized) return;
 
-    if (isInRange(current.width, snapWidth) &&
-        isInRange(current.height, snapHeight)) {
-      x = snapWidth;
-      y = snapHeight;
-      notifyListeners();
-    }
-  }
-
-  void onWindowDragEnd() {
-    final Size currentPosition = Size(x, y);
-    Size defaultSnap = Size(
-      ParameterWindow.defaultWidth,
-      ParameterWindow.defaultHeight / 4,
-    );
-    checkSnap(currentPosition, defaultSnap);
-    notifyListeners();
-  }
-
-  void onVerticalDragBottomEnd(DragEndDetails details) {
-    double nearestSnap = _nearestMultiple(
-      currentHeight,
-      ParameterWindow.defaultHeight / 4,
-    );
-    if (currentHeight < (nearestSnap + snapRange) &&
-        currentHeight > (nearestSnap - snapRange)) {
-      currentHeight = nearestSnap;
-      notifyListeners();
-    }
-  }
-
-  void onVerticalDragTopEnd(DragEndDetails details) {
-    double bottomPos = currentHeight + y;
-    double nearestSnap = _nearestMultiple(
-      currentHeight,
-      ParameterWindow.defaultHeight / 4,
-    );
-    if (currentHeight < (nearestSnap + snapRange) &&
-        currentHeight > (nearestSnap - snapRange)) {
-      currentHeight = nearestSnap;
-      y = bottomPos - currentHeight;
-      notifyListeners();
-    }
-  }
-
-  void onHorizontalLeftDragEnd(DragEndDetails details) {
-    double rightPos = currentWidth + x;
-    double nearestSnap = _nearestMultiple(
-      currentWidth,
-      ParameterWindow.defaultWidth,
-    );
-    if (currentWidth < (nearestSnap + snapRange) &&
-        currentWidth > (nearestSnap - snapRange)) {
-      currentWidth = nearestSnap;
-      x = rightPos - currentWidth;
-      notifyListeners();
-    }
-  }
-
-  void onHorizontalRightDragEnd(DragEndDetails details) {
-    double nearestSnap = _nearestMultiple(
-      currentWidth,
-      ParameterWindow.defaultWidth,
-    );
-    if (currentWidth < (nearestSnap + snapRange) &&
-        currentWidth > (nearestSnap - snapRange)) {
-      currentWidth = nearestSnap;
-      notifyListeners();
-    }
-  }
-
-  void onHorizontalDragLeft(DragUpdateDetails details) {
-    double rightPos = currentWidth + x;
-    double newX = x + details.delta.dx;
-    double newWidth = currentWidth - details.delta.dx;
-
-    if (newWidth < _parameter.minWidth) {
-      currentWidth = _parameter.minWidth;
-      x = rightPos - currentWidth;
-    } else if (newX <= 0) {
-      x = 0;
-      currentWidth = rightPos; // why not rightPos-x? because x is 0
-    } else {
-      x = newX;
-      currentWidth = newWidth;
-    }
-    notifyListeners();
-  }
-
-  void onHorizontalDragRight(DragUpdateDetails details) {
-    currentWidth += details.delta.dx;
-    if (currentWidth < _parameter.minWidth) {
-      currentWidth = _parameter.minWidth;
-    }
-    notifyListeners();
-  }
-
-  void onHorizontalDragBottom(DragUpdateDetails details) {
-    currentHeight += details.delta.dy;
-    if (currentHeight < _parameter.minHeight) {
-      currentHeight = _parameter.minHeight;
-    }
-    notifyListeners();
-  }
-
-  void onHorizontalDragTop(DragUpdateDetails details) {
-    double bottomPos = currentHeight + y;
-    double newY = y + details.delta.dy;
-    double newHeight = currentHeight - details.delta.dy;
-    if (newHeight < _parameter.minHeight) {
-      currentHeight = _parameter.minHeight;
-      y = bottomPos - currentHeight;
-    } else if (newY <= 0) {
-      y = 0;
-      currentHeight = bottomPos; // why not bottomPos-y? because y is 0
-    } else {
-      y = newY;
-      currentHeight = newHeight;
-    }
-    notifyListeners();
-  }
-
-  void onHorizontalDragBottomRight(DragUpdateDetails details) {
-    // Avoid double notification by manipulating variables directly or batching?
-    // calling notifyListeners in both sub-methods will trigger 2 notifies per frame.
-    // It's better to implement logic here or create private non-notifying methods.
-    // For simplicity, we just reuse the logic but suppress notification if possible,
-    // or just let it notify twice (UI will just rebuild twice, frame outcome is same).
-    // Optimization: Inline logic to notify once.
-
-    // Right logic
-    currentWidth += details.delta.dx;
-    if (currentWidth < _parameter.minWidth) {
-      currentWidth = _parameter.minWidth;
-    }
-
-    // Bottom logic
-    currentHeight += details.delta.dy;
-    if (currentHeight < _parameter.minHeight) {
-      currentHeight = _parameter.minHeight;
-    }
-
-    notifyListeners();
-  }
-
-  void onHorizontalDragBottomLeft(DragUpdateDetails details) {
-    // Left logic
-    double rightPos = currentWidth + x;
-    double newX = x + details.delta.dx;
-    double newWidth = currentWidth - details.delta.dx;
-
-    if (newWidth < _parameter.minWidth) {
-      currentWidth = _parameter.minWidth;
-      x = rightPos - currentWidth;
-    } else if (newX <= 0) {
-      x = 0;
-      currentWidth = rightPos;
-    } else {
-      x = newX;
-      currentWidth = newWidth;
-    }
-
-    // Bottom logic
-    currentHeight += details.delta.dy;
-    if (currentHeight < _parameter.minHeight) {
-      currentHeight = _parameter.minHeight;
-    }
-
-    notifyListeners();
-  }
-
-  void onHorizontalDragTopRight(DragUpdateDetails details) {
-    // Right logic
-    currentWidth += details.delta.dx;
-    if (currentWidth < _parameter.minWidth) {
-      currentWidth = _parameter.minWidth;
-    }
-
-    // Top logic
-    double bottomPos = currentHeight + y;
-    double newY = y + details.delta.dy;
-    double newHeight = currentHeight - details.delta.dy;
-    if (newHeight < _parameter.minHeight) {
-      currentHeight = _parameter.minHeight;
-      y = bottomPos - currentHeight;
-    } else if (newY <= 0) {
-      y = 0;
-      currentHeight = bottomPos;
-    } else {
-      y = newY;
-      currentHeight = newHeight;
-    }
-
-    notifyListeners();
-  }
-
-  void onHorizontalDragTopLeft(DragUpdateDetails details) {
-    // Left logic
-    double rightPos = currentWidth + x;
-    double newX = x + details.delta.dx;
-    double newWidth = currentWidth - details.delta.dx;
-
-    if (newWidth < _parameter.minWidth) {
-      currentWidth = _parameter.minWidth;
-      x = rightPos - currentWidth;
-    } else if (newX <= 0) {
-      x = 0;
-      currentWidth = rightPos;
-    } else {
-      x = newX;
-      currentWidth = newWidth;
-    }
-
-    // Top logic
-    double bottomPos = currentHeight + y;
-    double newY = y + details.delta.dy;
-    double newHeight = currentHeight - details.delta.dy;
-    if (newHeight < _parameter.minHeight) {
-      currentHeight = _parameter.minHeight;
-      y = bottomPos - currentHeight;
-    } else if (newY <= 0) {
-      y = 0;
-      currentHeight = bottomPos;
-    } else {
-      y = newY;
-      currentHeight = newHeight;
-    }
-
-    notifyListeners();
-  }
-
-  void toggleMaximize(Size screenSize, [bool? isMaximize]) {
-    if (isMaximize == isMaximized) return;
-
-    if (isMaximized) {
-      x = lastPosition.width;
-      y = lastPosition.height;
-      currentWidth = lastSize.width;
-      currentHeight = lastSize.height;
-    } else {
-      lastPosition = Size(x, y);
-      lastSize = Size(currentWidth, currentHeight);
-
+    if (targetState) {
+      // Save current geometry then expand to fill screen.
+      _preMaximizePosition = Size(x, y);
+      _preMaximizeSize = Size(currentWidth, currentHeight);
       x = 0;
       y = 0;
-      currentWidth = screenSize.width;
-      currentHeight = screenSize.height;
+      currentWidth = screen.width;
+      currentHeight = screen.height;
+    } else {
+      // Restore saved geometry.
+      x = _preMaximizePosition.width;
+      y = _preMaximizePosition.height;
+      currentWidth = _preMaximizeSize.width;
+      currentHeight = _preMaximizeSize.height;
     }
-    isMaximized = !isMaximized;
+
+    isMaximized = targetState;
     notifyListeners();
   }
 
+  // ── Keyboard window positioning ───────────────────────────────────────────
+
+  void moveLeft() {
+    if (isMaximized) return;
+    x = max(0.0, _snap(x - ParameterWindow.defaultWidth, ParameterWindow.defaultWidth));
+    y = max(0.0, _snap(y, ParameterWindow.defaultMinHeight));
+    notifyListeners();
+    positionChangeAction();
+  }
+
+  void moveRight() {
+    if (isMaximized) return;
+    x = max(0.0, _snap(x + ParameterWindow.defaultWidth, ParameterWindow.defaultWidth));
+    y = max(0.0, _snap(y, ParameterWindow.defaultMinHeight));
+    notifyListeners();
+    positionChangeAction();
+  }
+
+  void moveUp() {
+    if (isMaximized) return;
+    y = max(0.0, _snap(y - ParameterWindow.defaultMinHeight, ParameterWindow.defaultMinHeight));
+    x = max(0.0, _snap(x, ParameterWindow.defaultWidth));
+    notifyListeners();
+    positionChangeAction();
+  }
+
+  void moveDown() {
+    if (isMaximized) return;
+    y = max(0.0, _snap(y + ParameterWindow.defaultMinHeight, ParameterWindow.defaultMinHeight));
+    x = max(0.0, _snap(x, ParameterWindow.defaultWidth));
+    notifyListeners();
+    positionChangeAction();
+  }
+
+  // ── Drag: move window ─────────────────────────────────────────────────────
+
+  /// Returns a [GestureDetector] that handles dragging the window and
+  /// optionally double-tapping to toggle maximise.
   Widget dragWidget({required Widget child, bool canDoubleClick = true}) {
     return GestureDetector(
       supportedDevices: const {PointerDeviceKind.mouse},
       onTap: () {
         requestFocus();
-        if (canDoubleClick) {
-          int now = DateTime.now().millisecondsSinceEpoch;
-          if (now - _lastTap < 300) {
-            _consecutiveTaps++;
-            if (_consecutiveTaps >= 2) {
-              _toggleMaximize?.call((screenSize) => toggleMaximize(screenSize));
-            }
+        if (!canDoubleClick) return;
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (now - _lastTapTimestamp < 300) {
+          _consecutiveTaps++;
+          if (_consecutiveTaps >= 2) {
+            _toggleMaximize?.call((s) => toggleMaximize(s));
+            _consecutiveTaps = 1;
           }
+        } else {
           _consecutiveTaps = 1;
-          _lastTap = now;
         }
+        _lastTapTimestamp = now;
       },
-      onPanStart: (details) {
+      onPanStart: (_) {
         if (!isMaximized) requestFocus();
       },
-      onPanUpdate: (tapInfo) {
+      onPanUpdate: (details) {
         if (isMaximized) return;
         requestFocus();
-        x += tapInfo.delta.dx;
-        y += tapInfo.delta.dy;
-        x = x.clamp(0.0, double.infinity);
-        y = y.clamp(0.0, double.infinity);
+        x = (x + details.delta.dx).clamp(0.0, double.infinity);
+        y = (y + details.delta.dy).clamp(0.0, double.infinity);
         notifyListeners();
       },
-      onPanEnd: (details) {
+      onPanEnd: (_) {
         if (isMaximized) return;
-        onWindowDragEnd();
+        _snapWindowPosition();
         positionChangeAction();
       },
       child: child,
     );
   }
 
-  bool Function(KeyEvent event)? onKeyEvent;
+  // ── Drag-end snap helpers ─────────────────────────────────────────────────
+
+  void _snapWindowPosition() {
+    final snapped = _snapSize(
+      Size(x, y),
+      Size(ParameterWindow.defaultWidth, ParameterWindow.defaultHeight / 4),
+    );
+    if (snapped != null) {
+      x = snapped.width;
+      y = snapped.height;
+      notifyListeners();
+    }
+  }
+
+  void onVerticalDragBottomEnd(DragEndDetails _) =>
+      _trySnapHeight(preserveBottom: false);
+
+  void onVerticalDragTopEnd(DragEndDetails _) =>
+      _trySnapHeight(preserveBottom: true);
+
+  void onHorizontalRightDragEnd(DragEndDetails _) =>
+      _trySnapWidth(preserveRight: false);
+
+  void onHorizontalLeftDragEnd(DragEndDetails _) =>
+      _trySnapWidth(preserveRight: true);
+
+  // ── Drag: resize edges ────────────────────────────────────────────────────
+
+  void onHorizontalDragRight(DragUpdateDetails d) {
+    currentWidth = (currentWidth + d.delta.dx).clamp(
+      _parameter.minWidth,
+      double.infinity,
+    );
+    notifyListeners();
+  }
+
+  void onHorizontalDragLeft(DragUpdateDetails d) {
+    final rightPos = x + currentWidth;
+    final newX = x + d.delta.dx;
+    final newW = currentWidth - d.delta.dx;
+
+    if (newW < _parameter.minWidth) {
+      currentWidth = _parameter.minWidth;
+      x = rightPos - currentWidth;
+    } else if (newX <= 0) {
+      x = 0;
+      currentWidth = rightPos;
+    } else {
+      x = newX;
+      currentWidth = newW;
+    }
+    notifyListeners();
+  }
+
+  void onHorizontalDragBottom(DragUpdateDetails d) {
+    currentHeight = (currentHeight + d.delta.dy).clamp(
+      _parameter.minHeight,
+      double.infinity,
+    );
+    notifyListeners();
+  }
+
+  void onHorizontalDragTop(DragUpdateDetails d) {
+    final bottomPos = y + currentHeight;
+    final newY = y + d.delta.dy;
+    final newH = currentHeight - d.delta.dy;
+
+    if (newH < _parameter.minHeight) {
+      currentHeight = _parameter.minHeight;
+      y = bottomPos - currentHeight;
+    } else if (newY <= 0) {
+      y = 0;
+      currentHeight = bottomPos;
+    } else {
+      y = newY;
+      currentHeight = newH;
+    }
+    notifyListeners();
+  }
+
+  // ── Drag: resize corners ──────────────────────────────────────────────────
+
+  void onHorizontalDragBottomRight(DragUpdateDetails d) {
+    currentWidth = (currentWidth + d.delta.dx).clamp(
+      _parameter.minWidth,
+      double.infinity,
+    );
+    currentHeight = (currentHeight + d.delta.dy).clamp(
+      _parameter.minHeight,
+      double.infinity,
+    );
+    notifyListeners();
+  }
+
+  void onHorizontalDragBottomLeft(DragUpdateDetails d) {
+    _resizeLeft(d.delta.dx);
+    currentHeight = (currentHeight + d.delta.dy).clamp(
+      _parameter.minHeight,
+      double.infinity,
+    );
+    notifyListeners();
+  }
+
+  void onHorizontalDragTopRight(DragUpdateDetails d) {
+    currentWidth = (currentWidth + d.delta.dx).clamp(
+      _parameter.minWidth,
+      double.infinity,
+    );
+    _resizeTop(d.delta.dy);
+    notifyListeners();
+  }
+
+  void onHorizontalDragTopLeft(DragUpdateDetails d) {
+    _resizeLeft(d.delta.dx);
+    _resizeTop(d.delta.dy);
+    notifyListeners();
+  }
+
+  // ── Private resize helpers ────────────────────────────────────────────────
+
+  /// Resize from the left edge (moves x, adjusts width).
+  void _resizeLeft(double dx) {
+    final rightPos = x + currentWidth;
+    final newX = x + dx;
+    final newW = currentWidth - dx;
+
+    if (newW < _parameter.minWidth) {
+      currentWidth = _parameter.minWidth;
+      x = rightPos - currentWidth;
+    } else if (newX <= 0) {
+      x = 0;
+      currentWidth = rightPos;
+    } else {
+      x = newX;
+      currentWidth = newW;
+    }
+  }
+
+  /// Resize from the top edge (moves y, adjusts height).
+  void _resizeTop(double dy) {
+    final bottomPos = y + currentHeight;
+    final newY = y + dy;
+    final newH = currentHeight - dy;
+
+    if (newH < _parameter.minHeight) {
+      currentHeight = _parameter.minHeight;
+      y = bottomPos - currentHeight;
+    } else if (newY <= 0) {
+      y = 0;
+      currentHeight = bottomPos;
+    } else {
+      y = newY;
+      currentHeight = newH;
+    }
+  }
+
+  // ── Private snap helpers ──────────────────────────────────────────────────
+
+  /// Returns the nearest multiple of [n] to [value].
+  double _snap(double value, double n) {
+    assert(n > 0);
+    final lower = (value ~/ n) * n;
+    final upper = lower + n;
+    return (value - lower < upper - value) ? lower : upper;
+  }
+
+  /// Returns a snapped [Size] if the current value is within [snapRange] of
+  /// a grid multiple, or `null` when no snap should occur.
+  Size? _snapSize(Size current, Size grid) {
+    final snapW = _snap(current.width, grid.width);
+    final snapH = _snap(current.height, grid.height);
+
+    bool inRange(double v, double t) =>
+        (v - snapRange) < t && t < (v + snapRange);
+
+    if (inRange(current.width, snapW) && inRange(current.height, snapH)) {
+      return Size(snapW, snapH);
+    }
+    return null;
+  }
+
+  void _trySnapHeight({required bool preserveBottom}) {
+    final snapped = _snap(currentHeight, ParameterWindow.defaultHeight / 4);
+    if ((currentHeight - snapped).abs() < snapRange) {
+      if (preserveBottom) {
+        final bottom = y + currentHeight;
+        currentHeight = snapped;
+        y = bottom - currentHeight;
+      } else {
+        currentHeight = snapped;
+      }
+      notifyListeners();
+    }
+  }
+
+  void _trySnapWidth({required bool preserveRight}) {
+    final snapped = _snap(currentWidth, ParameterWindow.defaultWidth);
+    if ((currentWidth - snapped).abs() < snapRange) {
+      if (preserveRight) {
+        final right = x + currentWidth;
+        currentWidth = snapped;
+        x = right - currentWidth;
+      } else {
+        currentWidth = snapped;
+      }
+      notifyListeners();
+    }
+  }
 }

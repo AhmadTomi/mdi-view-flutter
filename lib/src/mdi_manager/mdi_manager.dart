@@ -1,9 +1,29 @@
 part of '../../mdi_view.dart';
 
+// ── MdiManager ────────────────────────────────────────────────────────────────
+
+/// Root widget for the MDI surface.
+///
+/// Responsibilities:
+///   • Provides [MdiStyleProvider] to the subtree.
+///   • Renders the tab strip ([MdiTabWidget]) and the scrollable MDI canvas.
+///   • Tracks [LayoutBuilder] size changes and updates [MdiController].
+///   • Hosts the dual scroll-bar setup (primary + right-side thumb scrollbar).
 class MdiManager extends StatefulWidget {
   final MdiController controller;
   final MdiStyleConfiguration? style;
-  const MdiManager({super.key, required this.controller, this.style});
+
+  /// Optional host-level key event handler (runs before the MDI default
+  /// bindings; return `true` to consume the event).
+  final bool Function(KeyEvent event)? onKeyEvent;
+
+  const MdiManager({
+    super.key,
+    required this.controller,
+    this.style,
+    this.onKeyEvent,
+  });
+
   @override
   State<MdiManager> createState() => _MdiManagerState();
 }
@@ -11,131 +31,45 @@ class MdiManager extends StatefulWidget {
 class _MdiManagerState extends State<MdiManager> {
   @override
   void initState() {
-    widget.controller.addListener(_rebuildWidget);
     super.initState();
+    widget.controller.addListener(_rebuild);
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_rebuildWidget);
+    widget.controller.removeListener(_rebuild);
     super.dispose();
   }
 
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    final ctrl = widget.controller;
+
     return MdiStyleProvider(
-      style: widget.style ?? MdiStyleConfiguration(),
+      style: widget.style ?? MdiStyleConfiguration.defaults,
       child: FocusScope(
-        onFocusChange: (value) {
-          // No print needed here for production, but logic remains
-          widget.controller.onFocusChange(value);
-        },
-        onKeyEvent: (node, event) {
-          bool isHandled = widget.controller.onKeyEvent(event);
-          return isHandled ? KeyEventResult.handled : KeyEventResult.ignored;
+        onFocusChange: ctrl.onFocusChange,
+        onKeyEvent: (_, event) {
+          if (widget.onKeyEvent?.call(event) ?? false) {
+            return KeyEventResult.handled;
+          }
+          return ctrl.onKeyEvent(event)
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
         },
         child: Builder(
-          builder: (context) => ColoredBox(
-            color: MdiStyleProvider.of(context).mdiBackgroundColor,
+          builder: (ctx) => ColoredBox(
+            color: MdiStyleProvider.of(ctx).mdiBackgroundColor,
             child: Column(
               children: [
-                MdiTabWidget(widget.controller),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(1.0),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        updateScreenSize(constraints.biggest);
-                        return ScrollConfiguration(
-                          behavior: const ScrollBehavior().copyWith(
-                            dragDevices: {
-                              PointerDeviceKind.touch,
-                              PointerDeviceKind.trackpad,
-                            },
-                            scrollbars: false,
-                            physics: widget.controller.isMaximize
-                                ? const NeverScrollableScrollPhysics()
-                                : const AlwaysScrollableScrollPhysics(),
-                          ),
-                          child: Stack(
-                            children: [
-                              SizedBox.expand(
-                                child: Scrollbar(
-                                  trackVisibility: false,
-                                  thumbVisibility:
-                                      !widget.controller.isMaximize,
-                                  interactive: !widget.controller.isMaximize,
-                                  thickness: 4,
-                                  controller:
-                                      widget.controller.horizontalController,
-                                  child: SingleChildScrollView(
-                                    controller:
-                                        widget.controller.horizontalController,
-                                    scrollDirection: Axis.horizontal,
-                                    hitTestBehavior: HitTestBehavior.opaque,
-                                    child: SingleChildScrollView(
-                                      controller:
-                                          widget.controller.verticalController,
-                                      hitTestBehavior: HitTestBehavior.opaque,
-                                      scrollDirection: Axis.vertical,
-                                      child: SizedBox.fromSize(
-                                        size: widget.controller.mdiSize,
-                                        child: RepaintBoundary(
-                                          child: Stack(
-                                            children: widget.controller.windows
-                                                .map((c) {
-                                                  return ResizableWindow(
-                                                    key: ValueKey(c.tag),
-                                                    controller: c,
-                                                  );
-                                                })
-                                                .toList(),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                bottom: 0,
-                                child: Scrollbar(
-                                  controller: widget
-                                      .controller
-                                      .verticalScrollBarController,
-                                  trackVisibility: false,
-                                  thumbVisibility:
-                                      !widget.controller.isMaximize,
-                                  interactive: !widget.controller.isMaximize,
-                                  thickness: 4,
-                                  child: SingleChildScrollView(
-                                    controller: widget
-                                        .controller
-                                        .verticalScrollBarController,
-                                    hitTestBehavior: HitTestBehavior.opaque,
-                                    physics:
-                                        const AlwaysScrollableScrollPhysics(),
-                                    child: Container(
-                                      width: 20,
-                                      color: Colors.transparent,
-                                      height: widget.controller.mdiSize.height
-                                          .clamp(
-                                            constraints.maxHeight,
-                                            double.infinity,
-                                          ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
+                MdiTabWidget(ctrl),
+                Expanded(child: _MdiCanvas(controller: ctrl)),
               ],
             ),
           ),
@@ -143,37 +77,136 @@ class _MdiManagerState extends State<MdiManager> {
       ),
     );
   }
+}
 
-  void updateScreenSize(Size size) {
-    final height = size.height;
-    final width = size.width;
+// ── _MdiCanvas ────────────────────────────────────────────────────────────────
 
-    Size newScreenSize = Size(width, height);
+/// The scrollable 2-D canvas that hosts all [ResizableWindow] widgets.
+class _MdiCanvas extends StatelessWidget {
+  final MdiController controller;
 
-    if (widget.controller.mdiSize == Size.zero) {
-      widget.controller.mdiSize = newScreenSize;
-    }
+  const _MdiCanvas({required this.controller});
 
-    if (widget.controller.screenSize != newScreenSize) {
-      widget.controller.screenSize = newScreenSize;
-      widget.controller.calculateUpdateScreenSize();
-      if (widget.controller.isMaximize)
-        widget.controller.frontWindow?.updateParameter(
-          x: 0,
-          y: 0,
-          currentHeight: newScreenSize.height,
-          currentWidth: newScreenSize.width,
-        );
-      WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-        widget.controller.tabMenuController.tabScrollCheck();
-        _rebuildWidget();
-      });
-    }
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(1.0),
+      child: LayoutBuilder(
+        builder: (ctx, constraints) {
+          _updateScreenSize(constraints.biggest);
+
+          final isMax = controller.isMaximize;
+
+          return ScrollConfiguration(
+            behavior: const ScrollBehavior().copyWith(
+              overscroll: false,
+              dragDevices: {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.trackpad,
+              },
+              scrollbars: false,
+              physics: isMax
+                  ? const NeverScrollableScrollPhysics()
+                  : const ClampingScrollPhysics(),
+            ),
+            child: Stack(
+              children: [
+                // ── Main 2-D scroll area ───────────────────────────────────
+                SizedBox.expand(
+                  child: Scrollbar(
+                    trackVisibility: false,
+                    thumbVisibility: !isMax,
+                    interactive: !isMax,
+                    thickness: 4,
+                    controller: controller.horizontalController,
+                    child: SingleChildScrollView(
+                      controller: controller.horizontalController,
+                      scrollDirection: Axis.horizontal,
+                      hitTestBehavior: HitTestBehavior.opaque,
+                      child: SingleChildScrollView(
+                        controller: controller.verticalController,
+                        scrollDirection: Axis.vertical,
+                        hitTestBehavior: HitTestBehavior.opaque,
+                        child: SizedBox.fromSize(
+                          size: controller.mdiSize,
+                          child: RepaintBoundary(
+                            child: Stack(
+                              children: controller.windows
+                                  .map(
+                                    (c) => ResizableWindow(
+                                      key: ValueKey(c.tag),
+                                      controller: c,
+                                    ),
+                                  )
+                                  .toList(growable: false),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // ── Right-edge vertical scrollbar thumb ────────────────────
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Scrollbar(
+                    controller: controller.verticalScrollBarController,
+                    trackVisibility: false,
+                    thumbVisibility: !isMax,
+                    interactive: !isMax,
+                    thickness: 4,
+                    child: SingleChildScrollView(
+                      controller: controller.verticalScrollBarController,
+                      hitTestBehavior: HitTestBehavior.opaque,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        width: 20,
+                        height: controller.mdiSize.height.clamp(
+                          constraints.maxHeight,
+                          double.infinity,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
-  void _rebuildWidget() {
-    if (context.mounted) {
-      setState(() {});
+  void _updateScreenSize(Size size) {
+    if (controller.mdiSize == Size.zero) {
+      controller.mdiSize = size;
     }
+
+    if (controller.screenSize == size) return;
+
+    controller.screenSize = size;
+    controller.calculateUpdateScreenSize();
+
+    if (controller.isMaximize) {
+      controller.frontWindow?.updateParameter(
+        x: 0,
+        y: 0,
+        currentHeight: size.height,
+        currentWidth: size.width,
+      );
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.tabMenuController.tabScrollCheck();
+    });
   }
+}
+
+// Add the public alias so MdiManager continues to compile against
+// the renamed internal method.
+extension on MdiController {
+  void calculateUpdateScreenSize() => _recalculateMdiSize();
 }

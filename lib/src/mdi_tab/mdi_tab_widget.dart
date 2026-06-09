@@ -1,7 +1,16 @@
 part of 'mdi_tab.dart';
 
+// ── MdiTabWidget ──────────────────────────────────────────────────────────────
+
+/// The horizontal tab bar sitting at the top of the MDI surface.
+///
+/// Responsibilities:
+///   • Renders a reorderable list of window tabs.
+///   • Shows left/right scroll arrows when tabs overflow.
+///   • Provides a maximize/restore toggle button.
 class MdiTabWidget extends StatefulWidget {
   final MdiController mdiController;
+
   const MdiTabWidget(this.mdiController, {super.key});
 
   @override
@@ -9,191 +18,239 @@ class MdiTabWidget extends StatefulWidget {
 }
 
 class _MdiTabWidgetState extends State<MdiTabWidget> {
-  late final MdiTabController controller;
+  late final MdiTabController _tabController;
 
   @override
   void initState() {
-    controller = widget.mdiController.tabMenuController;
-    controller.addListener(_rebuildWidget);
     super.initState();
+    _tabController = widget.mdiController.tabMenuController;
+    _tabController.addListener(_rebuild);
   }
 
   @override
   void dispose() {
-    controller.removeListener(_rebuildWidget);
+    _tabController.removeListener(_rebuild);
     super.dispose();
   }
 
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    final mdiStyle = MdiStyleProvider.of(context);
+    final style = MdiStyleProvider.of(context);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) {
-        controller.tabScrollCheck();
-      }
+      if (mounted) _tabController.tabScrollCheck();
     });
+
     return Container(
-      color: mdiStyle.tabBackgroundColor,
+      color: style.tabBackgroundColor,
       height: 24,
       alignment: Alignment.centerLeft,
       child: Row(
         children: [
-          Expanded(child: reorderedTab(context)),
-
-          Row(
-            children: [
-              const SizedBox(
-                height: 32,
-                width: 0.6,
-                child: VerticalDivider(thickness: 0.6),
-              ),
-              if (controller.showTabNavButton)
-                _ButtonContainer(
-                  enable: controller.showLeftButton,
-                  onTap: () {
-                    controller.scrollLeft();
-                  },
-                  borderRadius: 0,
-                  color: mdiStyle.focusedTabMenuColor.withValues(alpha: 0.4),
-                  splashColor: mdiStyle.tabSplashColor,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 4,
-                    horizontal: 2,
-                  ),
-                  child: Icon(
-                    Icons.keyboard_arrow_left_rounded,
-                    size: 15,
-                    color: mdiStyle.unfocusedTabTextColor,
-                  ),
-                ),
-              if (controller.showTabNavButton)
-                _ButtonContainer(
-                  enable: controller.showRightButton,
-                  onTap: () {
-                    controller.scrollRight();
-                  },
-                  color: mdiStyle.focusedTabMenuColor.withValues(alpha: 0.4),
-                  splashColor: mdiStyle.tabSplashColor,
-                  borderRadius: 0,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 4,
-                    horizontal: 2,
-                  ),
-                  child: Icon(
-                    Icons.keyboard_arrow_right_rounded,
-                    size: 15,
-                    color: mdiStyle.unfocusedTabTextColor,
-                  ),
-                ),
-              const SizedBox(
-                height: 32,
-                width: 0.6,
-                child: VerticalDivider(thickness: 0.6),
-              ),
-              _ButtonContainer(
-                onTap: () {
-                  widget.mdiController.toggleMaximize();
-                },
-                borderRadius: 0,
-                color: mdiStyle.tabBackgroundColor.withValues(alpha: 0.4),
-                splashColor: mdiStyle.tabSplashColor,
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                child: Icon(
-                  widget.mdiController.isMaximize
-                      ? Icons.grid_view_rounded
-                      : Icons.fit_screen_rounded,
-                  size: 15,
-                  opticalSize: 60,
-                  color: mdiStyle.unfocusedTabTextColor,
-                ),
-              ),
-            ],
-          ),
+          Expanded(child: _TabList(mdiController: widget.mdiController)),
+          _TabToolbar(mdiController: widget.mdiController),
         ],
       ),
     );
   }
+}
 
-  void _rebuildWidget() {
-    if (context.mounted) {
-      setState(() {});
-    }
-  }
+// ── _TabList ──────────────────────────────────────────────────────────────────
 
-  Widget reorderedTab(BuildContext context) {
-    final list = controller.tabControllers;
-    final mdiStyle = MdiStyleProvider.of(context);
+class _TabList extends StatelessWidget {
+  final MdiController mdiController;
+
+  const _TabList({required this.mdiController});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = MdiStyleProvider.of(context);
+    final tabs = mdiController.tabMenuController.tabControllers;
+
     return ReorderableListView.builder(
-      itemBuilder: (context, index) {
-        final e = list[index];
-        return ReorderableDragStartListener(
-          key: ValueKey(index),
-          enabled: true,
-          index: index,
-          child: _ButtonContainer(
-            key: ValueKey(index),
-            color: e.hasFocus
-                ? mdiStyle.focusedTabMenuColor
-                : mdiStyle.unfocusedTabMenuColor,
-            borderRadius: 2,
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            width: e.hasFocus ? null : mdiStyle.tabMenuMinWidth,
-            splashColor: mdiStyle.tabSplashColor,
-            margin: EdgeInsets.zero,
-            onTap: () => e.requestFocus(),
-            child: Row(
-              spacing: 6,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  flex: e.hasFocus ? 0 : 1,
-                  child: Text(
-                    e.title,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: e.hasFocus ? FontWeight.w600 : null,
-                      color: e.hasFocus
-                          ? mdiStyle.focusedTabTextColor
-                          : mdiStyle.unfocusedTabTextColor,
-                    ),
-                  ),
-                ),
-                _ButtonContainer(
-                  onTap: e.close,
-                  splashColor: Colors.red,
-                  color: Colors.red.withValues(alpha: 0.1),
-                  padding: const EdgeInsets.all(1),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 10,
-                    color: e.hasFocus
-                        ? mdiStyle.focusedTabTextColor
-                        : mdiStyle.unfocusedTabTextColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-      itemCount: list.length,
       scrollDirection: Axis.horizontal,
       buildDefaultDragHandles: false,
-      scrollController: controller.tabScrollController,
-      onReorder: (oldIndex, newIndex) {
-        controller.reorderTabs(oldIndex, newIndex);
+      scrollController: mdiController.tabMenuController.tabScrollController,
+      itemCount: tabs.length,
+      onReorder: mdiController.tabMenuController.reorderTabs,
+      itemBuilder: (_, index) {
+        final ctrl = tabs[index];
+        return ReorderableDragStartListener(
+          key: ValueKey(ctrl.tag),
+          index: index,
+          child: _TabItem(
+            key: ValueKey(ctrl.tag),
+            controller: ctrl,
+            style: style,
+          ),
+        );
       },
     );
   }
 }
 
-class _ButtonContainer extends StatelessWidget {
+// ── _TabItem ──────────────────────────────────────────────────────────────────
+
+class _TabItem extends StatelessWidget {
+  final ResizeableWindowController controller;
+  final MdiStyleConfiguration style;
+
+  const _TabItem({
+    super.key,
+    required this.controller,
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final focused = controller.hasFocus;
+
+    return _TapTarget(
+      color: focused ? style.focusedTabMenuColor : style.unfocusedTabMenuColor,
+      borderRadius: 2,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      width: focused ? null : style.tabMenuMinWidth,
+      splashColor: style.tabSplashColor,
+      margin: EdgeInsets.zero,
+      onTap: controller.requestFocus,
+      child: Row(
+        spacing: 6,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Flexible(
+            flex: focused ? 0 : 1,
+            child: Text(
+              controller.title,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: focused ? FontWeight.w600 : null,
+                color: focused
+                    ? style.focusedTabTextColor
+                    : style.unfocusedTabTextColor,
+              ),
+            ),
+          ),
+          _TapTarget(
+            onTap: controller.close,
+            splashColor: Colors.red,
+            color: Colors.red.withValues(alpha: 0.1),
+            padding: const EdgeInsets.all(1),
+            child: Icon(
+              Icons.close_rounded,
+              size: 10,
+              color: focused
+                  ? style.focusedTabTextColor
+                  : style.unfocusedTabTextColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── _TabToolbar ───────────────────────────────────────────────────────────────
+
+class _TabToolbar extends StatelessWidget {
+  final MdiController mdiController;
+
+  const _TabToolbar({required this.mdiController});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = MdiStyleProvider.of(context);
+    final tab = mdiController.tabMenuController;
+
+    return Row(
+      children: [
+        _kDivider,
+        if (tab.showTabNavButton) ...[
+          _ScrollButton(
+            enabled: tab.showLeftButton,
+            icon: Icons.keyboard_arrow_left_rounded,
+            onTap: tab.scrollLeft,
+            style: style,
+          ),
+          _ScrollButton(
+            enabled: tab.showRightButton,
+            icon: Icons.keyboard_arrow_right_rounded,
+            onTap: tab.scrollRight,
+            style: style,
+          ),
+        ],
+        _kDivider,
+        _TapTarget(
+          onTap: mdiController.toggleMaximize,
+          borderRadius: 0,
+          color: style.tabBackgroundColor.withValues(alpha: 0.4),
+          splashColor: style.tabSplashColor,
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+          child: Icon(
+            mdiController.isMaximize
+                ? Icons.grid_view_rounded
+                : Icons.fit_screen_rounded,
+            size: 15,
+            opticalSize: 60,
+            color: style.unfocusedTabTextColor,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ScrollButton extends StatelessWidget {
+  final bool enabled;
+  final IconData icon;
+  final VoidCallback onTap;
+  final MdiStyleConfiguration style;
+
+  const _ScrollButton({
+    required this.enabled,
+    required this.icon,
+    required this.onTap,
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _TapTarget(
+      enable: enabled,
+      onTap: onTap,
+      borderRadius: 0,
+      color: style.focusedTabMenuColor.withValues(alpha: 0.4),
+      splashColor: style.tabSplashColor,
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      child: Icon(icon, size: 15, color: style.unfocusedTabTextColor),
+    );
+  }
+}
+
+const Widget _kDivider = SizedBox(
+  height: 32,
+  width: 0.6,
+  child: VerticalDivider(thickness: 0.6),
+);
+
+// ── _TapTarget ────────────────────────────────────────────────────────────────
+
+/// Lightweight tappable container backed by [Material] + [InkWell] so
+/// that ink splash colours are honoured correctly.
+///
+/// Replaces the old `_ButtonContainer` — identical API, cleaner internals.
+class _TapTarget extends StatelessWidget {
   final Widget child;
-  final void Function()? onTap;
-  final void Function()? onLongPress;
-  final void Function()? onDoubleTap;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onDoubleTap;
   final double? height;
   final double? width;
   final AlignmentGeometry? alignment;
@@ -202,12 +259,12 @@ class _ButtonContainer extends StatelessWidget {
   final double borderRadius;
   final BoxConstraints? constraints;
   final Color? color;
-  final Color? disableColor;
+  final Color? disabledColor;
   final Color? splashColor;
   final EdgeInsetsGeometry? margin;
   final bool enable;
 
-  const _ButtonContainer({
+  const _TapTarget({
     super.key,
     required this.child,
     this.onTap,
@@ -220,7 +277,7 @@ class _ButtonContainer extends StatelessWidget {
     this.borderRadius = 4,
     this.constraints,
     this.color,
-    this.disableColor,
+    this.disabledColor,
     this.splashColor,
     this.margin,
     this.enable = true,
@@ -229,38 +286,35 @@ class _ButtonContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor =
+        enable ? (color ?? Colors.transparent) : (disabledColor ?? Colors.transparent);
+    final effectiveSplash =
+        splashColor ?? Theme.of(context).primaryColor.withValues(alpha: 0.5);
+
     return Padding(
       padding: margin ?? EdgeInsets.zero,
       child: Material(
-        color: enable
-            ? (color ?? Colors.transparent)
-            : (disableColor ?? Colors.transparent),
+        color: effectiveColor,
         borderRadius: BorderRadius.circular(borderRadius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: enable ? onTap : null,
           onLongPress: enable ? onLongPress : null,
           onDoubleTap: enable ? onDoubleTap : null,
-          splashColor:
-              splashColor ??
-              Theme.of(context).primaryColor.withValues(alpha: 0.5),
-          hoverColor:
-              splashColor ??
-              Theme.of(context).primaryColor.withValues(alpha: 0.2),
-          highlightColor:
-              splashColor ??
-              Theme.of(context).primaryColor.withValues(alpha: 0.4),
+          splashColor: effectiveSplash,
+          hoverColor: effectiveSplash.withValues(alpha: 0.2),
+          highlightColor: effectiveSplash.withValues(alpha: 0.4),
           splashFactory: NoSplash.splashFactory,
           child: Container(
             padding: padding,
             alignment: alignment,
             constraints: constraints,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(borderRadius),
-            ),
             width: width,
             height: height,
             clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
             child: child,
           ),
         ),

@@ -1,93 +1,105 @@
-part of '../../mdi_view.dart';
+part of '../mdi_view.dart';
 
+/// Sentinel value indicating an unset position (will be auto-centered on open).
+const double _kUnsetPosition = -1.0;
+
+/// Immutable descriptor for an MDI window's identity, size, and position.
+///
+/// All mutation returns a new instance via [copyWith] — the controller owns
+/// the mutable runtime state; [ParameterWindow] is a pure value object.
+@immutable
 class ParameterWindow {
-  // Private fields
-  final String _id;
-  final String _title;
-  Map<String, dynamic> _argument;
+  // ── Identity ──────────────────────────────────────────────────────────────
 
-  // Public fields
+  final String id;
+  final String title;
+
+  // ── Geometry ──────────────────────────────────────────────────────────────
+
   final double minWidth;
   final double minHeight;
-  double currentWidth;
-  double currentHeight;
-  double x;
-  double y;
+  final double currentWidth;
+  final double currentHeight;
+  final double x;
+  final double y;
 
-  // Static constants
-  static double defaultWidth = 382.0;
-  static double defaultHeight = 474.0;
-  static double splitWidth = 1.0;
-  static double splitHeight = 4.0;
+  // ── Arbitrary key/value payload ───────────────────────────────────────────
 
-  static double get defaultMinWidth => defaultWidth / splitWidth;
-  static double get defaultMinHeight => defaultHeight / splitHeight;
+  final Map<String, dynamic> argument;
 
-  // Constructor with required parameters and default values
-  ParameterWindow({
-    String? id,
-    required String title,
-    Map<String, dynamic> argument = const {},
-    double? minHeight,
+  // ── Grid defaults (configurable at the class level) ───────────────────────
+
+  static const double defaultWidth = 382.0;
+  static const double defaultHeight = 474.0;
+
+  /// Number of column units a window occupies by default.
+  static double get defaultMinWidth => defaultWidth;
+
+  /// Number of row units a window occupies by default (¼ of full height).
+  static double get defaultMinHeight => defaultHeight / 4.0;
+
+  // ── Constructor ───────────────────────────────────────────────────────────
+
+  const ParameterWindow({
+    this.id = 'Primary',
+    required this.title,
+    this.argument = const {},
     double? minWidth,
+    double? minHeight,
     double? currentWidth,
     double? currentHeight,
-    this.x = -1.0,
-    this.y = -1.0,
-  }) : _id = id ?? "Primary",
-       _title = title,
-       _argument = Map.of(argument),
-       currentWidth = currentWidth ?? defaultWidth,
-       currentHeight = currentHeight ?? defaultHeight,
-       minHeight = minHeight ?? defaultMinHeight,
-       minWidth = minWidth ?? defaultMinWidth;
+    this.x = _kUnsetPosition,
+    this.y = _kUnsetPosition,
+  })  : minWidth = minWidth ?? defaultWidth,        // ignore: prefer_initializing_formals
+        minHeight = minHeight ?? 118.5,             // defaultHeight / 4
+        currentWidth = currentWidth ?? defaultWidth,
+        currentHeight = currentHeight ?? defaultHeight;
 
-  // Getters for private fields
-  String get id => _id;
-  String get title => _title;
-  String get tag => "$_title.$_id";
-  bool get isMaximize => (_argument[KeyMapVariable.isMaximize] ?? '0') == '1';
-  Map<String, dynamic> get argument => _argument;
-  void setArgument(Map<String, dynamic> args) => _argument = args;
-  void setMaximize(bool isMaximize) =>
-      _argument[KeyMapVariable.isMaximize] = isMaximize ? "1" : "0";
+  // ── Derived helpers ───────────────────────────────────────────────────────
 
-  // Method to get width scale
-  static int getWidthScale(double width) {
-    int result = (width + 6) ~/ defaultWidth;
-    return result < 1 ? 1 : result;
-  }
+  /// Stable composite key used as a widget key and map key.
+  String get tag => '$title.$id';
 
-  // Method to get height scale
-  static int getHeightScale(double height) {
-    int result = (height + 6) ~/ defaultHeight;
-    return result < 1 ? 0 : result;
-  }
+  bool get isPositionUnset => x == _kUnsetPosition || y == _kUnsetPosition;
 
-  void updateParameter({
-    String? argument,
-    double? width,
-    double? height,
-    double? posX,
-    double? posY,
-  }) {
-    x = posX ?? x;
-    y = posY ?? y;
-    currentWidth = width ?? currentWidth;
-    currentHeight = height ?? currentHeight;
-  }
+  bool get isMaximize =>
+      (argument[MdiArgumentKeys.isMaximize] ?? '0') == '1';
 
   double get cornerX => x + currentWidth;
   double get cornerY => y + currentHeight;
 
-  void debugLog() {
-    print("id:$_id");
-    print("title:$_title");
-    print("Position: $x,$y");
-    print("CuprintrrentSize:$currentWidth,$currentHeight");
+  // ── Grid helpers ──────────────────────────────────────────────────────────
+
+  static int getWidthScale(double width) {
+    final result = (width + 6) ~/ defaultWidth;
+    return result < 1 ? 1 : result;
   }
 
-  // CopyWith method
+  static int getHeightScale(double height) {
+    final result = (height + 6) ~/ defaultHeight;
+    return result < 1 ? 0 : result;
+  }
+
+  // ── Mutation helpers (return new instances) ───────────────────────────────
+
+  ParameterWindow withMaximize(bool value) => copyWith(
+        argument: {...argument, MdiArgumentKeys.isMaximize: value ? '1' : '0'},
+      );
+
+  ParameterWindow withArgument(Map<String, dynamic> extra) =>
+      copyWith(argument: {...argument, ...extra});
+
+  ParameterWindow withPosition({required double posX, required double posY}) =>
+      copyWith(x: posX, y: posY);
+
+  ParameterWindow withSize({
+    required double width,
+    required double height,
+  }) =>
+      copyWith(currentWidth: width, currentHeight: height);
+
+  // ── copyWith ──────────────────────────────────────────────────────────────
+
   ParameterWindow copyWith({
     String? id,
     String? title,
@@ -100,9 +112,9 @@ class ParameterWindow {
     double? y,
   }) {
     return ParameterWindow(
-      id: id ?? _id,
-      title: title ?? _title,
-      argument: argument ?? _argument,
+      id: id ?? this.id,
+      title: title ?? this.title,
+      argument: argument ?? this.argument,
       minHeight: minHeight ?? this.minHeight,
       minWidth: minWidth ?? this.minWidth,
       currentWidth: currentWidth ?? this.currentWidth,
@@ -112,86 +124,71 @@ class ParameterWindow {
     );
   }
 
-  ParameterWindow get clone {
-    return ParameterWindow(
-      id: id,
-      title: title,
-      argument: argument,
-      minHeight: minHeight,
-      minWidth: minWidth,
-      currentWidth: currentWidth,
-      currentHeight: currentHeight,
-      x: x,
-      y: y,
-    );
+  // ── Equality / hashing ────────────────────────────────────────────────────
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! ParameterWindow) return false;
+    return id == other.id &&
+        title == other.title &&
+        argument.toString() == other.argument.toString() &&
+        minWidth == other.minWidth &&
+        minHeight == other.minHeight &&
+        currentWidth == other.currentWidth &&
+        currentHeight == other.currentHeight &&
+        x == other.x &&
+        y == other.y;
   }
 
-  bool isSame(ParameterWindow data, {bool printDebug = false}) {
-    if (_title != data.title) {
-      // if(printDebug)appLog.debug("TITLE : $_title != ${data.title}");
-      return false;
-    }
+  @override
+  int get hashCode => Object.hash(
+        id,
+        title,
+        argument.toString(),
+        minWidth,
+        minHeight,
+        currentWidth,
+        currentHeight,
+        x,
+        y,
+      );
 
-    if (_argument.toString() != data.argument.toString()) {
-      if (printDebug) print("ARGS : $_argument != ${data.argument}");
-      return false;
-    }
+  // ── Serialisation ─────────────────────────────────────────────────────────
 
-    if (currentWidth != data.currentWidth) {
-      if (printDebug) print("WIDTH : $currentWidth != ${data.currentWidth}");
-      return false;
-    }
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'argument': argument,
+        'minWidth': minWidth,
+        'minHeight': minHeight,
+        'currentWidth': currentWidth,
+        'currentHeight': currentHeight,
+        'x': x,
+        'y': y,
+      };
 
-    if (currentHeight != data.currentHeight) {
-      if (printDebug) print("HEIGHT : $currentHeight != ${data.currentHeight}");
-      return false;
-    }
-
-    if (x != data.x) {
-      if (printDebug) print("X : $x != ${data.x}");
-      return false;
-    }
-
-    if (y != data.y) {
-      if (printDebug) print("Y : $y != ${data.y}");
-      return false;
-    }
-
-    return true;
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': _id,
-      'title': _title,
-      'argument': _argument,
-      'minWidth': minWidth,
-      'minHeight': minHeight,
-      'currentWidth': currentWidth,
-      'currentHeight': currentHeight,
-      'x': x,
-      'y': y,
-    };
-  }
-
-  // Deserialize the object from JSON
   factory ParameterWindow.fromJson(Map<String, dynamic> json) {
     return ParameterWindow(
-      id: json['id'] as String?,
+      id: json['id'] as String? ?? 'Primary',
       title: json['title'] as String,
-      argument: json['argument'] as Map<String, dynamic>,
-      minWidth: json['minWidth'] as double?,
-      minHeight: json['minHeight'] as double?,
-      currentWidth: json['currentWidth'] as double? ?? defaultWidth,
-      currentHeight: json['currentHeight'] as double? ?? defaultHeight,
-      x: json['x'] as double? ?? -1.0,
-      y: json['y'] as double? ?? -1.0,
+      argument: (json['argument'] as Map?)?.cast<String, dynamic>() ?? {},
+      minWidth: (json['minWidth'] as num?)?.toDouble(),
+      minHeight: (json['minHeight'] as num?)?.toDouble(),
+      currentWidth: (json['currentWidth'] as num?)?.toDouble(),
+      currentHeight: (json['currentHeight'] as num?)?.toDouble(),
+      x: (json['x'] as num?)?.toDouble() ?? _kUnsetPosition,
+      y: (json['y'] as num?)?.toDouble() ?? _kUnsetPosition,
     );
   }
+
+  @override
+  String toString() =>
+      'ParameterWindow(tag: $tag, x: $x, y: $y, '
+      'w: $currentWidth, h: $currentHeight)';
 }
 
-abstract class KeyMapVariable {
-  static String isMaximize = "isMaximize";
+/// Well-known keys stored inside [ParameterWindow.argument].
+abstract final class MdiArgumentKeys {
+  static const String isMaximize = 'isMaximize';
 }
-
-abstract class ParameterWindowHelper {}
