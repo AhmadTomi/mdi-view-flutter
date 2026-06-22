@@ -56,13 +56,20 @@ class ResizableWindowState extends State<ResizableWindow> {
 
   @override
   Widget build(BuildContext context) {
+    // Use the total effective pixel ratio (real screen DPR * zoom)
+    final double scaledDpr = MediaQuery.devicePixelRatioOf(context);
+
+    // Snap to the nearest EXACT physical device pixel
+    double snap(double value) => (value * scaledDpr).roundToDouble() / scaledDpr;
+
     return Positioned(
-      top: _controller.renderY,
-      left: _controller.renderX,
+      top: snap(_controller.y),
+      left: snap(_controller.x),
       child: RepaintBoundary(
         child: Padding(
           padding: EdgeInsets.all(_controller.widgetPadding),
-          child: _buildWindowChrome(context),
+          // Pass the snap function down
+          child: _buildWindowChrome(context, snap),
         ),
       ),
     );
@@ -74,15 +81,16 @@ class ResizableWindowState extends State<ResizableWindow> {
     if (mounted) setState(() {});
   }
 
-  Widget _buildWindowChrome(BuildContext context) {
+  Widget _buildWindowChrome(BuildContext context, double Function(double) snap) {
     final style = MdiStyleProvider.of(context);
-    final gap = _controller.isMaximized ? 0 : style.gap;
+    final double rawGap = _controller.isMaximized ? 0.0 : style.gap.toDouble();
+    final double snappedGap = snap(rawGap);
     final radius = _controller.isMaximized ? 0.0 : style.borderRadius.toDouble();
 
     return ResizableWindowProvider(
       controller: _controller,
       child: Padding(
-        padding: EdgeInsets.all(gap.toDouble()),
+        padding: EdgeInsets.all(snappedGap),
         child: FocusScope(
           node: _controller.focusScopeNode,
           onKeyEvent: (_, event) {
@@ -106,10 +114,10 @@ class ResizableWindowState extends State<ResizableWindow> {
             child: ColoredBox(
               color: Colors.transparent,
               child: Padding(
-                padding: EdgeInsets.all(gap.toDouble()),
+                padding: EdgeInsets.all(snappedGap),
                 child: SizedBox(
-                  width: _controller.renderWidth - 2 * gap,
-                  height: _controller.renderHeight - 2 * gap,
+                  width: snap(_controller.currentWidth) - 2 * snappedGap,
+                  height: snap(_controller.currentHeight) - 2 * snappedGap,
                   child: Stack(
                     children: [
                       // ── Window surface ──────────────────────────────────
