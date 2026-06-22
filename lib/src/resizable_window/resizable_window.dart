@@ -57,8 +57,8 @@ class ResizableWindowState extends State<ResizableWindow> {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: _controller.y.floorToDouble(),
-      left: _controller.x.floorToDouble(),
+      top: _controller.renderY,
+      left: _controller.renderX,
       child: RepaintBoundary(
         child: Padding(
           padding: EdgeInsets.all(_controller.widgetPadding),
@@ -73,9 +73,6 @@ class ResizableWindowState extends State<ResizableWindow> {
   void _onControllerUpdate() {
     if (mounted) setState(() {});
   }
-
-  /// Rebuilds from outside (called by the state manager if needed).
-  void rebuild() => _onControllerUpdate();
 
   Widget _buildWindowChrome(BuildContext context) {
     final style = MdiStyleProvider.of(context);
@@ -111,8 +108,8 @@ class ResizableWindowState extends State<ResizableWindow> {
               child: Padding(
                 padding: EdgeInsets.all(gap.toDouble()),
                 child: SizedBox(
-                  width: _controller.currentWidth - 2 * gap,
-                  height: _controller.currentHeight - 2 * gap,
+                  width: _controller.renderWidth - 2 * gap,
+                  height: _controller.renderHeight - 2 * gap,
                   child: Stack(
                     children: [
                       // ── Window surface ──────────────────────────────────
@@ -172,8 +169,8 @@ class _WindowSurface extends StatelessWidget {
     final borderColor = controller.isMaximized
         ? style.maximizedBorderColor
         : controller.hasFocus
-            ? style.focusedBorderColor
-            : style.unfocusedBorderColor;
+        ? style.focusedBorderColor
+        : style.unfocusedBorderColor;
 
     return SizedBox.expand(
       child: ClipRRect(
@@ -230,15 +227,24 @@ class _EdgeHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Horizontal edges (left/right) need a full-height strip, so top and
+    // bottom are pinned to 0. Vertical edges (top/bottom) need a full-width
+    // strip, so left and right are pinned to 0. Without this, the
+    // unpinned axis collapses to the child's intrinsic size — which is 0,
+    // since the SizedBox below only declares a size on its own axis.
     return Positioned(
-      left: side == _EdgeSide.left ? 0 : null,
-      right: side == _EdgeSide.right ? 0 : null,
+      left: side == _EdgeSide.left
+          ? 0
+          : (!_isHorizontal ? 0 : null),
+      right: side == _EdgeSide.right
+          ? 0
+          : (!_isHorizontal ? 0 : null),
       top: side == _EdgeSide.top
           ? 0
-          : (side == _EdgeSide.left || side == _EdgeSide.right ? 0 : null),
+          : (_isHorizontal ? 0 : null),
       bottom: side == _EdgeSide.bottom
           ? 0
-          : (side == _EdgeSide.left || side == _EdgeSide.right ? 0 : null),
+          : (_isHorizontal ? 0 : null),
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragStart: _isHorizontal
@@ -309,11 +315,11 @@ class _CornerHandle extends StatelessWidget {
   const _CornerHandle.topLeft(this.controller) : side = _CornerSide.topLeft;
 
   MouseCursor get _cursor => switch (side) {
-        _CornerSide.topLeft || _CornerSide.bottomRight =>
-          SystemMouseCursors.resizeUpLeftDownRight,
-        _CornerSide.topRight || _CornerSide.bottomLeft =>
-          SystemMouseCursors.resizeUpRightDownLeft,
-      };
+    _CornerSide.topLeft || _CornerSide.bottomRight =>
+    SystemMouseCursors.resizeUpLeftDownRight,
+    _CornerSide.topRight || _CornerSide.bottomLeft =>
+    SystemMouseCursors.resizeUpRightDownLeft,
+  };
 
   @override
   Widget build(BuildContext context) {

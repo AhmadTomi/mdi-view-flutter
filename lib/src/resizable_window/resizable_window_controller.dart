@@ -35,6 +35,27 @@ class ResizeableWindowController extends ChangeNotifier {
   double currentWidth;
   double currentHeight;
 
+  // ── Pixel-snapped render geometry ─────────────────────────────────────────
+
+  /// Whole-pixel readings of [x], [y], [currentWidth], and [currentHeight]
+  /// for **rendering only**.
+  ///
+  /// Pointer deltas — especially from macOS trackpads, which routinely
+  /// report fractional sub-pixel movement — accumulate into the raw
+  /// geometry fields as long decimal doubles while dragging or resizing.
+  /// Painting those fractional values directly produces blurry or
+  /// doubled-up border lines, most visible on macOS displays where the
+  /// logical-to-device pixel ratio isn't a clean 2x (e.g. a non-Retina
+  /// external monitor).
+  ///
+  /// The underlying fields stay full precision so drag math, grid
+  /// snapping, and persisted geometry (`parameterWindow`) remain accurate —
+  /// only the widgets that actually paint a frame should read these.
+  double get renderX => x.roundToDouble();
+  double get renderY => y.roundToDouble();
+  double get renderWidth => currentWidth.roundToDouble();
+  double get renderHeight => currentHeight.roundToDouble();
+
   // ── State flags ───────────────────────────────────────────────────────────
 
   bool isMaximized = false;
@@ -103,12 +124,12 @@ class ResizeableWindowController extends ChangeNotifier {
 
   /// Snapshot of the current mutable state as an immutable [ParameterWindow].
   ParameterWindow get parameterWindow => _parameter.copyWith(
-        x: x,
-        y: y,
-        currentHeight: currentHeight,
-        currentWidth: currentWidth,
-        argument: _argument,
-      );
+    x: x,
+    y: y,
+    currentHeight: currentHeight,
+    currentWidth: currentWidth,
+    argument: _argument,
+  );
 
   /// Optional key-event handler installed by the content widget.
   bool Function(KeyEvent event)? onKeyEvent;
@@ -280,7 +301,7 @@ class ResizeableWindowController extends ChangeNotifier {
   void _snapWindowPosition() {
     final snapped = _snapSize(
       Size(x, y),
-      Size(ParameterWindow.defaultWidth, ParameterWindow.defaultHeight / 4),
+      Size(ParameterWindow.defaultWidth, ParameterWindow.defaultMinHeight),
     );
     if (snapped != null) {
       x = snapped.width;
@@ -457,7 +478,7 @@ class ResizeableWindowController extends ChangeNotifier {
   }
 
   void _trySnapHeight({required bool preserveBottom}) {
-    final snapped = _snap(currentHeight, ParameterWindow.defaultHeight / 4);
+    final snapped = _snap(currentHeight, ParameterWindow.defaultMinHeight);
     if ((currentHeight - snapped).abs() < snapRange) {
       if (preserveBottom) {
         final bottom = y + currentHeight;

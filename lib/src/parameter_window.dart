@@ -31,12 +31,19 @@ class ParameterWindow {
 
   static const double defaultWidth = 382.0;
   static const double defaultHeight = 474.0;
+  static const double defaultMinWidth = defaultWidth;
 
-  /// Number of column units a window occupies by default.
-  static double get defaultMinWidth => defaultWidth;
-
-  /// Number of row units a window occupies by default (¼ of full height).
-  static double get defaultMinHeight => defaultHeight / 4.0;
+  /// Quarter-height grid unit used for keyboard movement and resize/drag
+  /// snapping.
+  ///
+  /// `defaultHeight / 4` is `118.5` — a fractional logical pixel. Snapping
+  /// to that grid lands `y`/`currentHeight` on a half-pixel boundary every
+  /// other step, which is invisible on a perfect 2x Retina display (0.5
+  /// logical px → 1 device px) but renders as a blurry, anti-aliased edge
+  /// on a 1x display — a common setup when a Mac drives an external,
+  /// non-Retina monitor. Rounded once here so every consumer shares a
+  /// single whole-pixel grid value instead of recomputing the fraction.
+  static const double defaultMinHeight = 119.0;
 
   // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -50,8 +57,8 @@ class ParameterWindow {
     double? currentHeight,
     this.x = _kUnsetPosition,
     this.y = _kUnsetPosition,
-  })  : minWidth = minWidth ?? defaultWidth,        // ignore: prefer_initializing_formals
-        minHeight = minHeight ?? 118.5,             // defaultHeight / 4
+  })  : minWidth = minWidth ?? defaultWidth,
+        minHeight = minHeight ?? defaultMinHeight,
         currentWidth = currentWidth ?? defaultWidth,
         currentHeight = currentHeight ?? defaultHeight;
 
@@ -83,8 +90,8 @@ class ParameterWindow {
   // ── Mutation helpers (return new instances) ───────────────────────────────
 
   ParameterWindow withMaximize(bool value) => copyWith(
-        argument: {...argument, MdiArgumentKeys.isMaximize: value ? '1' : '0'},
-      );
+    argument: {...argument, MdiArgumentKeys.isMaximize: value ? '1' : '0'},
+  );
 
   ParameterWindow withArgument(Map<String, dynamic> extra) =>
       copyWith(argument: {...argument, ...extra});
@@ -132,7 +139,7 @@ class ParameterWindow {
     if (other is! ParameterWindow) return false;
     return id == other.id &&
         title == other.title &&
-        argument.toString() == other.argument.toString() &&
+        _mapsEqual(argument, other.argument) &&
         minWidth == other.minWidth &&
         minHeight == other.minHeight &&
         currentWidth == other.currentWidth &&
@@ -142,31 +149,53 @@ class ParameterWindow {
   }
 
   @override
-  int get hashCode => Object.hash(
-        id,
-        title,
-        argument.toString(),
-        minWidth,
-        minHeight,
-        currentWidth,
-        currentHeight,
-        x,
-        y,
-      );
+  int get hashCode => Object.hashAll([
+    id,
+    title,
+    // Produce an order-independent hash for the argument map.
+    Object.hashAllUnordered(
+      argument.entries.map((e) => Object.hash(e.key, e.value)),
+    ),
+    minWidth,
+    minHeight,
+    currentWidth,
+    currentHeight,
+    x,
+    y,
+  ]);
+
+  // ── Private helpers ───────────────────────────────────────────────────────
+
+  /// Shallow key-value equality for [argument] maps.
+  ///
+  /// Values are compared with `==`, so nested collections are compared by
+  /// identity unless they also override `==`.  This is sufficient for the
+  /// primitive payloads [ParameterWindow] carries in practice.
+  static bool _mapsEqual(
+      Map<String, dynamic> a,
+      Map<String, dynamic> b,
+      ) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key) || b[key] != a[key]) return false;
+    }
+    return true;
+  }
 
   // ── Serialisation ─────────────────────────────────────────────────────────
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'argument': argument,
-        'minWidth': minWidth,
-        'minHeight': minHeight,
-        'currentWidth': currentWidth,
-        'currentHeight': currentHeight,
-        'x': x,
-        'y': y,
-      };
+    'id': id,
+    'title': title,
+    'argument': argument,
+    'minWidth': minWidth,
+    'minHeight': minHeight,
+    'currentWidth': currentWidth,
+    'currentHeight': currentHeight,
+    'x': x,
+    'y': y,
+  };
 
   factory ParameterWindow.fromJson(Map<String, dynamic> json) {
     return ParameterWindow(
@@ -185,7 +214,7 @@ class ParameterWindow {
   @override
   String toString() =>
       'ParameterWindow(tag: $tag, x: $x, y: $y, '
-      'w: $currentWidth, h: $currentHeight)';
+          'w: $currentWidth, h: $currentHeight)';
 }
 
 /// Well-known keys stored inside [ParameterWindow.argument].
