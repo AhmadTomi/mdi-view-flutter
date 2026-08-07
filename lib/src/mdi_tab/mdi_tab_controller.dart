@@ -51,11 +51,19 @@ class MdiTabController extends ChangeNotifier {
   void addTab(String tag, ResizeableWindowController controller) {
     if (_tabs.containsKey(tag)) return;
     _tabs[tag] = controller;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      tabScrollCheck();
+    });
     // Notification is the caller's responsibility (MdiController will notify).
   }
 
   /// Removes a tab.  No-op if [tag] is absent.
-  void removeTab(String tag) => _tabs.remove(tag);
+  void removeTab(String tag) {
+    _tabs.remove(tag);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      tabScrollCheck();
+    });
+  }
 
   /// Reorders tabs from [oldIndex] to [newIndex] (standard Flutter semantics).
   void reorderTabs(int oldIndex, int newIndex) {
@@ -77,6 +85,9 @@ class MdiTabController extends ChangeNotifier {
       ..addEntries(list.map((c) => MapEntry(c.tag, c)));
 
     notifyListeners();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      tabScrollCheck();
+    });
   }
 
   // ── Scroll helpers ────────────────────────────────────────────────────────

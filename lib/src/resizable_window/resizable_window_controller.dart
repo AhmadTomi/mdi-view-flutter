@@ -109,8 +109,13 @@ class ResizeableWindowController extends ChangeNotifier {
         currentWidth = parameter.currentWidth,
         currentHeight = parameter.currentHeight;
 
-  // ── Public interface ──────────────────────────────────────────────────────
+  late final Widget widget = ResizableWindow(
+    key: ValueKey(tag),
+    controller: this,
+  );
 
+  // ── Public interface ──────────────────────────────────────────────────────
+  
   bool get isDisposed => _isDisposed;
   bool get hasFocus => focusScopeNode.hasFocus;
 

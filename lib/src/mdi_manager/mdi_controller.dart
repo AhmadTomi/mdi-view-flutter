@@ -76,6 +76,9 @@ class MdiController extends ChangeNotifier {
   List<ParameterWindow> get parameterWindows =>
       _windows.values.map((e) => e.parameterWindow).toList();
 
+  bool _isDisposed = false;
+  bool get isDisposed => _isDisposed;
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   /// Must be called once after the widget tree has been attached.
@@ -86,6 +89,7 @@ class MdiController extends ChangeNotifier {
     _syncScrollBars();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_isDisposed) return;
       tabMenuController.init();
       requestLastWindowFocus();
     });
@@ -93,6 +97,7 @@ class MdiController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _debouncer.dispose();
     _windowChangeStream.close();
     tabMenuController.dispose();
@@ -219,19 +224,17 @@ class MdiController extends ChangeNotifier {
 
     _registerWindow(tag, ctrl);
 
-    // Delay notification slightly so the widget tree can mount the new window
-    // before focus is requested.
     if (notify) {
-      Future.delayed(const Duration(milliseconds: 100), notifyListeners);
+      notifyListeners();
     }
 
     return ctrl;
   }
 
   Future<String> removeWindow(
-    String tag, {
-    bool requestFocusToPrevious = false,
-  }) async {
+      String tag, {
+        bool requestFocusToPrevious = false,
+      }) async {
     if (tag.isEmpty) return '';
 
     if (requestFocusToPrevious && _windows.length >= 2) {
@@ -393,9 +396,9 @@ class MdiController extends ChangeNotifier {
   }
 
   void _onWindowFocusChanged(
-    bool focused,
-    ResizeableWindowController ctrl,
-  ) {
+      bool focused,
+      ResizeableWindowController ctrl,
+      ) {
     if (!focused) return;
 
     final alreadyFront = frontWindow == ctrl;

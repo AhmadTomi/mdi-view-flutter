@@ -51,6 +51,8 @@ class _MdiManagerState extends State<MdiManager> {
   Widget build(BuildContext context) {
     final ctrl = widget.controller;
 
+
+
     return MdiStyleProvider(
       style: widget.style ?? MdiStyleConfiguration.defaults,
       child: FocusScope(
@@ -132,12 +134,7 @@ class _MdiCanvas extends StatelessWidget {
                           child: RepaintBoundary(
                             child: Stack(
                               children: controller.windows
-                                  .map(
-                                    (c) => ResizableWindow(
-                                      key: ValueKey(c.tag),
-                                      controller: c,
-                                    ),
-                                  )
+                                  .map((c) => c.widget)
                                   .toList(growable: false),
                             ),
                           ),
@@ -187,20 +184,23 @@ class _MdiCanvas extends StatelessWidget {
 
     if (controller.screenSize == size) return;
 
-    controller.screenSize = size;
-    controller.calculateUpdateScreenSize();
-
-    if (controller.isMaximize) {
-      controller.frontWindow?.updateParameter(
-        x: 0,
-        y: 0,
-        currentHeight: size.height,
-        currentWidth: size.width,
-      );
-    }
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (controller.isDisposed) return;
+      if (controller.screenSize == size) return;
+
+      controller.screenSize = size;
+      controller.calculateUpdateScreenSize();
+
+      if (controller.isMaximize) {
+        controller.frontWindow?.updateParameter(
+          x: 0,
+          y: 0,
+          currentHeight: size.height,
+          currentWidth: size.width,
+        );
+      }
       controller.tabMenuController.tabScrollCheck();
+      controller.notifyListeners();
     });
   }
 }

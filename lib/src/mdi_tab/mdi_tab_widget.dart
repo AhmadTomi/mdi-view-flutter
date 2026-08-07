@@ -43,10 +43,6 @@ class _MdiTabWidgetState extends State<MdiTabWidget> {
   Widget build(BuildContext context) {
     final style = MdiStyleProvider.of(context);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _tabController.tabScrollCheck();
-    });
-
     return Container(
       color: style.tabBackgroundColor,
       height: 24,
@@ -287,7 +283,7 @@ class _TapTarget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveColor =
-        enable ? (color ?? Colors.transparent) : (disabledColor ?? Colors.transparent);
+    enable ? (color ?? Colors.transparent) : (disabledColor ?? Colors.transparent);
     final effectiveSplash =
         splashColor ?? Theme.of(context).primaryColor.withValues(alpha: 0.5);
 

@@ -45,7 +45,7 @@ void main() {
 
       expect(
         () => controller.addWindow(parameter: param, child: (_) => Container()),
-        throwsException,
+        throwsStateError,
       );
     });
 

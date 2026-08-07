@@ -17,8 +17,8 @@ class MdiStyleProvider extends InheritedWidget {
   /// [MdiStyleConfiguration.defaults] when no ancestor is present.
   static MdiStyleConfiguration of(BuildContext context) {
     return context
-            .dependOnInheritedWidgetOfExactType<MdiStyleProvider>()
-            ?.style ??
+        .dependOnInheritedWidgetOfExactType<MdiStyleProvider>()
+        ?.style ??
         MdiStyleConfiguration.defaults;
   }
 
@@ -116,7 +116,7 @@ class MdiStyleConfiguration {
       tabBackgroundColor: tabBackgroundColor ?? Colors.blue.shade700,
       tabSplashColor: tabSplashColor ?? Colors.blue.shade400,
       unfocusBlockerColor:
-          unfocusBlockerColor ?? Colors.grey.withValues(alpha: 0.2),
+      unfocusBlockerColor ?? Colors.grey.withValues(alpha: 0.2),
       borderWidth: borderWidth,
       borderRadius: borderRadius,
     );
@@ -146,19 +146,19 @@ class MdiStyleConfiguration {
         gap: gap ?? this.gap,
         focusedBorderColor: focusedBorderColor ?? this.focusedBorderColor,
         unfocusedBorderColor:
-            unfocusedBorderColor ?? this.unfocusedBorderColor,
+        unfocusedBorderColor ?? this.unfocusedBorderColor,
         maximizedBorderColor:
-            maximizedBorderColor ?? this.maximizedBorderColor,
+        maximizedBorderColor ?? this.maximizedBorderColor,
         windowBackgroundColor:
-            windowBackgroundColor ?? this.windowBackgroundColor,
+        windowBackgroundColor ?? this.windowBackgroundColor,
         mdiBackgroundColor: mdiBackgroundColor ?? this.mdiBackgroundColor,
         tabMenuMinWidth: tabMenuMinWidth ?? this.tabMenuMinWidth,
         focusedTabTextColor: focusedTabTextColor ?? this.focusedTabTextColor,
         unfocusedTabTextColor:
-            unfocusedTabTextColor ?? this.unfocusedTabTextColor,
+        unfocusedTabTextColor ?? this.unfocusedTabTextColor,
         focusedTabMenuColor: focusedTabMenuColor ?? this.focusedTabMenuColor,
         unfocusedTabMenuColor:
-            unfocusedTabMenuColor ?? this.unfocusedTabMenuColor,
+        unfocusedTabMenuColor ?? this.unfocusedTabMenuColor,
         tabBackgroundColor: tabBackgroundColor ?? this.tabBackgroundColor,
         tabSplashColor: tabSplashColor ?? this.tabSplashColor,
         unfocusBlockerColor: unfocusBlockerColor ?? this.unfocusBlockerColor,
@@ -192,21 +192,21 @@ class MdiStyleConfiguration {
 
   @override
   int get hashCode => Object.hashAll([
-        gap,
-        focusedBorderColor,
-        unfocusedBorderColor,
-        maximizedBorderColor,
-        windowBackgroundColor,
-        mdiBackgroundColor,
-        tabMenuMinWidth,
-        focusedTabTextColor,
-        unfocusedTabTextColor,
-        focusedTabMenuColor,
-        unfocusedTabMenuColor,
-        tabBackgroundColor,
-        tabSplashColor,
-        unfocusBlockerColor,
-        borderWidth,
-        borderRadius,
-      ]);
+    gap,
+    focusedBorderColor,
+    unfocusedBorderColor,
+    maximizedBorderColor,
+    windowBackgroundColor,
+    mdiBackgroundColor,
+    tabMenuMinWidth,
+    focusedTabTextColor,
+    unfocusedTabTextColor,
+    focusedTabMenuColor,
+    unfocusedTabMenuColor,
+    tabBackgroundColor,
+    tabSplashColor,
+    unfocusBlockerColor,
+    borderWidth,
+    borderRadius,
+  ]);
 }
