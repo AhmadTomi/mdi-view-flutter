@@ -90,6 +90,16 @@ class MdiTabController extends ChangeNotifier {
     });
   }
 
+  void setTabs(List<ResizeableWindowController> list) {
+    _tabs
+      ..clear()
+      ..addEntries(list.map((c) => MapEntry(c.tag, c)));
+    notifyListeners();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      tabScrollCheck();
+    });
+  }
+
   // ── Scroll helpers ────────────────────────────────────────────────────────
 
   void scrollLeft() => _scrollBy(-_kScrollStep);

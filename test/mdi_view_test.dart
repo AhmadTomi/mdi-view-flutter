@@ -224,5 +224,39 @@ void main() {
 
       controller.dispose();
     });
+
+    test('Layout reconciliation preserves existing window controller instances', () {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 150,
+        ),
+        child: (_) => Container(),
+      );
+
+      final layoutBefore = controller.exportLayout();
+      
+      // Update coordinates in layout map manually
+      layoutBefore[0]['x'] = 120.0;
+      layoutBefore[0]['y'] = 170.0;
+
+      // Import layout and ensure the controller reference is the exact same instance (identical)
+      controller.importLayout(layoutBefore, childBuilder: (p) => Container());
+
+      expect(controller.windows.length, 1);
+      final reconciledW1 = controller.getWindow('W1.1');
+      expect(reconciledW1, isNotNull);
+      expect(identical(reconciledW1, w1), true); // Verify instance identity is preserved!
+      expect(reconciledW1!.x, 120.0);
+      expect(reconciledW1.y, 170.0);
+
+      controller.dispose();
+    });
   });
 }

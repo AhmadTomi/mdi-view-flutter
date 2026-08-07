@@ -293,15 +293,85 @@ class MdiController extends ChangeNotifier {
     List<Map<String, dynamic>> layoutJson, {
     required Widget Function(ParameterWindow parameter) childBuilder,
   }) {
-    removeAllWindows();
-    for (final json in layoutJson) {
-      final param = ParameterWindow.fromJson(json);
-      addWindow(
-        parameter: param,
-        child: (ctrl) => childBuilder(param),
-        notify: false,
-      );
+    final newParameters = layoutJson.map((json) => ParameterWindow.fromJson(json)).toList();
+    final newTags = newParameters.map((p) => p.tag).toSet();
+
+    // Remove any windows not present in the imported layout
+    final tagsToRemove = _windows.keys.where((tag) => !newTags.contains(tag)).toList();
+    for (final tag in tagsToRemove) {
+      _unregisterWindow(tag);
     }
+
+    final Map<String, ResizeableWindowController> reconciledWindows = {};
+
+    for (final param in newParameters) {
+      final tag = param.tag;
+      if (_windows.containsKey(tag)) {
+        final ctrl = _windows[tag]!;
+        
+        ctrl.updateParameter(
+          x: param.x,
+          y: param.y,
+          currentHeight: param.currentHeight,
+          currentWidth: param.currentWidth,
+        );
+        ctrl.setArgument(param.argument);
+        
+        reconciledWindows[tag] = ctrl;
+      } else {
+        final ctrl = ResizeableWindowController(parameter: param, child: (c) => childBuilder(param));
+        ctrl.getOtherWindowRects = () {
+          return _windows.values
+              .where((w) => w != ctrl && !w.isMaximized)
+              .map((w) => Rect.fromLTWH(w.x, w.y, w.currentWidth, w.currentHeight))
+              .toList();
+        };
+        ctrl.initAction(
+          onClose: (t) => removeWindow(t, requestFocusToPrevious: true),
+          toggleMaximize: (action) {
+            isMaximize = !isMaximize;
+            action(screenSize);
+            _recalculateMdiSize();
+            notifyListeners();
+            _debouncer.run(() {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                scrollTo(ctrl.x, ctrl.y, animate: !isMaximize);
+              });
+            });
+          },
+          onFocusChange: (focused) {
+            if (ctrl.isDisposed) return;
+            _onWindowFocusChanged(focused, ctrl);
+            if (focused) tabMenuController.notifyListeners();
+          },
+          onPositionChange: (_, __) {
+            _debouncer.run(() {
+              final changed = _recalculateMdiSize();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!isMaximize) scrollTo(ctrl.xBound, ctrl.yBound);
+              });
+              if (changed) notifyListeners();
+              _emitWindowChange(ctrl.tag);
+            });
+          },
+          onArgumentUpdate: (_) => _emitWindowChange(ctrl.tag),
+        );
+        
+        if (isMaximize) ctrl.toggleMaximize(screenSize, true);
+
+        tabMenuController.addTab(tag, ctrl);
+        
+        reconciledWindows[tag] = ctrl;
+        _emitWindowChange(tag);
+      }
+    }
+
+    _windows.clear();
+    _windows.addAll(reconciledWindows);
+
+    // Sync tab controllers order
+    tabMenuController.setTabs(reconciledWindows.values.toList());
+
     _recalculateMdiSize();
     notifyListeners();
   }
