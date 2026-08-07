@@ -117,27 +117,51 @@ class MdiController extends ChangeNotifier {
   /// Returns `true` if the event was consumed.
   bool onKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
-    if (!HardwareKeyboard.instance.isControlPressed) return false;
 
     final key = event.logicalKey;
 
-    // Ctrl + Tab -> cycle focus
-    if (key == LogicalKeyboardKey.tab) {
-      if (HardwareKeyboard.instance.isShiftPressed) {
-        moveFocusPrevious();
-      } else {
-        moveFocusNext();
+    if (kIsWeb) {
+      // Web specific shortcut: Alt + W to close active window
+      if (HardwareKeyboard.instance.isAltPressed && key == LogicalKeyboardKey.keyW) {
+        removeFrontWindow();
+        return true;
       }
-      return true;
+
+      // Web specific shortcuts: Ctrl + . (Period) / Ctrl + , (Comma) to cycle focus
+      if (HardwareKeyboard.instance.isControlPressed) {
+        if (key == LogicalKeyboardKey.period) {
+          moveFocusNext();
+          return true;
+        } else if (key == LogicalKeyboardKey.comma) {
+          moveFocusPrevious();
+          return true;
+        }
+      }
+    } else {
+      // Desktop / Native specific shortcuts
+      if (HardwareKeyboard.instance.isControlPressed) {
+        // Ctrl + Tab -> cycle focus
+        if (key == LogicalKeyboardKey.tab) {
+          if (HardwareKeyboard.instance.isShiftPressed) {
+            moveFocusPrevious();
+          } else {
+            moveFocusNext();
+          }
+          return true;
+        }
+
+        // Ctrl + W or Ctrl + F4 -> close active window
+        if (key == LogicalKeyboardKey.keyW || key == LogicalKeyboardKey.f4) {
+          removeFrontWindow();
+          return true;
+        }
+      }
     }
 
-    // Ctrl + W or Ctrl + F4 -> close active window
-    if (key == LogicalKeyboardKey.keyW || key == LogicalKeyboardKey.f4) {
-      removeFrontWindow();
-      return true;
+    if (!HardwareKeyboard.instance.isControlPressed ||
+        !HardwareKeyboard.instance.isAltPressed) {
+      return false;
     }
-
-    if (!HardwareKeyboard.instance.isAltPressed) return false;
 
     if (HardwareKeyboard.instance.isShiftPressed) {
       // Ctrl+Alt+Shift+Arrow → move front window by grid step.

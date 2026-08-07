@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mdi_view/mdi_view.dart';
 
@@ -244,9 +245,15 @@ class _MyHomePageState extends State<MyHomePage> {
                             ],
                           ),
                           const Divider(height: 16),
-                          _buildShortcutRow('Ctrl + Tab', 'Next window'),
-                          _buildShortcutRow('Ctrl + Shift + Tab', 'Prev window'),
-                          _buildShortcutRow('Ctrl + W / F4', 'Close window'),
+                          if (kIsWeb) ...[
+                            _buildShortcutRow('Ctrl + .', 'Next window'),
+                            _buildShortcutRow('Ctrl + ,', 'Prev window'),
+                            _buildShortcutRow('Alt + W', 'Close window'),
+                          ] else ...[
+                            _buildShortcutRow('Ctrl + Tab', 'Next window'),
+                            _buildShortcutRow('Ctrl + Shift + Tab', 'Prev window'),
+                            _buildShortcutRow('Ctrl + W / F4', 'Close window'),
+                          ],
                           _buildShortcutRow('Ctrl + Alt + Arrows', 'Move / Cycle'),
                           const Divider(height: 16),
                           const Row(
