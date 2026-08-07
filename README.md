@@ -1,6 +1,6 @@
 # MDI View for Flutter
 
-A Flutter package that provides a Multiple Document Interface (MDI) experience, allowing you to manage multiple floating, resizable, and maximizable windows within your application.
+A Flutter package that provides a Multiple Document Interface (MDI) experience, allowing you to manage multiple floating, resizable, and maximizable windows within your application. Built with a performance-first architecture, workspace layout persistence, and accessibility.
 
 ![MDI View Preview](./src/preview.gif)
 
@@ -11,12 +11,14 @@ A Flutter package that provides a Multiple Document Interface (MDI) experience, 
 ## Features
 
 *   **Multiple Windows:** Open and manage multiple windows simultaneously.
-*   **Resizable:** Users can resize windows by dragging the edges or corners.
-*   **Draggable:** Move windows around the workspace.
-*   **Maximizable:** Maximize windows to fill the available space.
-*   **Focus Management:** sophisticated focus handling (click to focus, tab navigation support).
-*   **Taskbar/Tab Integration:** Built-in tab bar to switch between open windows.
-*   **Customizable:** extensive styling options for borders, colors, and metrics.
+*   **Performance-First Architecture:** Subtree rendering caching (via controller widget caching) completely eliminates layout thrashing and unnecessary chrome repaints when shifting window Z-order or layouts.
+*   **Workspace Persistence & Diff Reconciliation:** Export layout configurations to a JSON-compatible format. Restoring layout uses diff reconciliation to modify active window positions in-place, preserving input state, text selections, and scroll positions.
+*   **Magnetic Edge Snapping:** Dragging or resizing window borders close to canvas boundaries or sibling window edges (within 12px) snaps them flush automatically.
+*   **Cross-Platform Keyboard Accessibility:** Fully navigable using native desktop shortcuts with fallback alternatives for web builds where standard hotkeys are browser-reserved.
+*   **Resizable & Draggable:** Free-form dragging and boundary/corner resizing.
+*   **Maximizable:** Toggle maximizing windows to fill the MDI canvas.
+*   **Focus Management:** Sophisticated Z-order focus promoting (click-to-focus and tab strip navigation).
+*   **Taskbar/Tab Integration:** Horizontal reorderable tabs showing open documents.
 
 ## Installation
 
@@ -24,7 +26,7 @@ Add `mdi_view` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  mdi_view: ^0.0.1
+  mdi_view: ^0.1.0
 ```
 
 Run `flutter pub get` to install.
@@ -33,13 +35,15 @@ Run `flutter pub get` to install.
 
 ### 1. Initialize the Controller
 
-Create an instance of `MdiController`. This controller manages the state of all your windows.
+Create an instance of `MdiController` to manage MDI states, scroll behaviors, and window registries.
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:mdi_view/mdi_view.dart';
 
 class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
+
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -51,8 +55,6 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     controller = MdiController();
-    
-    // Initialize the controller
     controller.init(); 
   }
 
@@ -61,14 +63,12 @@ class _MyHomePageState extends State<MyHomePage> {
     controller.dispose();
     super.dispose();
   }
-  
-  // ... build method
 }
 ```
 
 ### 2. Add the MdiManager Widget
 
-Place the `MdiManager` widget in your build tree, passing the controller you created.
+Mount the MDI canvas in your build tree.
 
 ```dart
 @override
@@ -88,14 +88,12 @@ Widget build(BuildContext context) {
 
 ### 3. Open a Window
 
-Use `controller.addWindow` to open a new window. You need to provide a `ParameterWindow` (configuration) and a `child` builder.
-
 ```dart
 void openNewWindow() {
   controller.addWindow(
     parameter: ParameterWindow(
-      title: 'My Window',
-      id: 'unique_id_1', // Optional: unique ID
+      title: 'Document 1',
+      id: 'unique_id_1',
       currentWidth: 300,
       currentHeight: 200,
     ),
@@ -106,26 +104,66 @@ void openNewWindow() {
 }
 ```
 
+---
+
+## Layout Persistence & Diff Reconciliation
+
+Serialize your workspace layout to JSON and reconstruct it cleanly without resetting active widget states.
+
+### Saving Workspace Layout
+```dart
+List<Map<String, dynamic>> savedLayout = controller.exportLayout();
+// This list can be converted to JSON and stored locally or in databases.
+```
+
+### Restoring Workspace Layout (Diff Reconciliation)
+```dart
+controller.importLayout(
+  savedLayout,
+  childBuilder: (ParameterWindow parameter) {
+    // Reconstruct the child based on parameters (e.g. title, ID, or arguments)
+    if (parameter.title == 'Calculator') {
+      return MyCalculator();
+    }
+    return MyTextEditor();
+  },
+);
+```
+
+---
+
+## Keyboard Shortcuts & Accessibility
+
+`mdi_view` listens to focus traversal hotkeys to cycle or close active documents:
+
+| Action | Desktop Build (Native Windows/macOS/Linux) | Web Build (Chrome/Firefox/Safari/Edge) |
+|---|---|---|
+| **Cycle Focus Next** | `Ctrl + Tab` or `Ctrl + Alt + ArrowRight` | `Ctrl + .` (Period) or `Ctrl + Alt + ArrowRight` |
+| **Cycle Focus Previous** | `Ctrl + Shift + Tab` or `Ctrl + Alt + ArrowLeft` | `Ctrl + ,` (Comma) or `Ctrl + Alt + ArrowLeft` |
+| **Close Active Window** | `Ctrl + W` or `Ctrl + F4` | `Alt + W` |
+
+---
+
 ## Customization
 
-You can customize the look and feel using `MdiStyleConfiguration` passed to `MdiManager`.
+Style configurations can be adjusted via `MdiStyleConfiguration`:
 
 ```dart
 MdiManager(
   controller: controller,
   style: MdiStyleConfiguration(
-    // Colors
+    // Surface colours
     mdiBackgroundColor: Colors.grey[300]!,
     windowBackgroundColor: Colors.white,
     focusedBorderColor: Colors.blueAccent,
     unfocusedBorderColor: Colors.grey,
     
-    // Dimensions
+    // Layout geometry
     borderRadius: 10.0,
     borderWidth: 2.0,
-    gap: 1.0, // Gap between window content and border
+    gap: 1.0, 
     
-    // Tab Bar Styling
+    // Tabs styling
     tabBackgroundColor: Colors.blue[800]!,
     focusedTabMenuColor: Colors.blue,
     unfocusedTabMenuColor: Colors.blue[700]!,
@@ -136,8 +174,6 @@ MdiManager(
 ## Credits
 
 This package is a modernized and optimized version of the original [flutter_app_mdi](https://github.com/achreffaidi/flutter_app_mdi) created by Achref Faidi.
-
-We have updated it to support Flutter 3.x, migrated to Null Safety, and optimized the rendering performance. Huge thanks to the original author for the foundational concepts.
 
 ## Contributing
 
