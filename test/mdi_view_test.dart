@@ -117,4 +117,112 @@ void main() {
       controller.dispose();
     });
   });
+
+  group('Enterprise Features Unit Tests', () {
+    test('Layout export and import preserves state', () {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 150,
+          currentWidth: 382,
+          currentHeight: 474,
+          argument: {'test': 'val1'},
+        ),
+        child: (_) => Container(),
+      );
+
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W2',
+          id: '2',
+          x: 200,
+          y: 250,
+          currentWidth: 400,
+          currentHeight: 500,
+          argument: {'test': 'val2'},
+        ),
+        child: (_) => Container(),
+      );
+
+      expect(controller.windows.length, 2);
+      final layout = controller.exportLayout();
+
+      final restoredController = MdiController();
+      restoredController.init();
+      restoredController.screenSize = const Size(800, 600);
+
+      restoredController.importLayout(layout, childBuilder: (p) => Container());
+
+      expect(restoredController.windows.length, 2);
+      expect(restoredController.windows[0].tag, 'W1.1');
+      expect(restoredController.windows[0].x, 100);
+      expect(restoredController.windows[0].y, 150);
+      expect(restoredController.windows[0].currentWidth, 382);
+      expect(restoredController.windows[0].currentHeight, 474);
+      expect(restoredController.windows[0].argument['test'], 'val1');
+
+      expect(restoredController.windows[1].tag, 'W2.2');
+      expect(restoredController.windows[1].x, 200);
+      expect(restoredController.windows[1].y, 250);
+      expect(restoredController.windows[1].currentWidth, 400);
+      expect(restoredController.windows[1].currentHeight, 500);
+      expect(restoredController.windows[1].argument['test'], 'val2');
+
+      controller.dispose();
+      restoredController.dispose();
+    });
+
+    test('Snapping to other windows aligns edges correctly', () {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 800);
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (_) => Container(),
+      );
+
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W2',
+          id: '2',
+          x: 308, // Close to w1.right (100 + 200 = 300)
+          y: 108, // Close to w1.top (100)
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (_) => Container(),
+      );
+
+      w2.x = 308;
+      w2.y = 108;
+      w2.onHorizontalLeftDragEnd(DragEndDetails()); // should snap left edge to w1's right (300)
+      expect(w2.x, 300.0);
+      expect(w2.currentWidth, 208.0); // snapped left from 308 to 300, widening it
+
+      w2.x = 308;
+      w2.y = 108;
+      w2.onVerticalDragTopEnd(DragEndDetails());
+      expect(w2.y, 100.0); // snapped top to w1's top (100)
+
+      controller.dispose();
+    });
+  });
 }

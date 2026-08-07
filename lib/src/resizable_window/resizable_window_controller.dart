@@ -139,6 +139,9 @@ class ResizeableWindowController extends ChangeNotifier {
   /// Optional key-event handler installed by the content widget.
   bool Function(KeyEvent event)? onKeyEvent;
 
+  /// Callback that returns a list of other active windows' coordinates for snapping.
+  List<Rect> Function()? getOtherWindowRects;
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   void initAction({
@@ -304,28 +307,235 @@ class ResizeableWindowController extends ChangeNotifier {
   // ── Drag-end snap helpers ─────────────────────────────────────────────────
 
   void _snapWindowPosition() {
-    final snapped = _snapSize(
-      Size(x, y),
-      Size(ParameterWindow.defaultWidth, ParameterWindow.defaultMinHeight),
-    );
-    if (snapped != null) {
-      x = snapped.width;
-      y = snapped.height;
-      notifyListeners();
+    final snappedToEdge = _snapToNearestEdges();
+    if (!snappedToEdge) {
+      final snapped = _snapSize(
+        Size(x, y),
+        Size(ParameterWindow.defaultWidth, ParameterWindow.defaultMinHeight),
+      );
+      if (snapped != null) {
+        x = snapped.width;
+        y = snapped.height;
+        notifyListeners();
+      }
     }
   }
 
-  void onVerticalDragBottomEnd(DragEndDetails _) =>
+  void onVerticalDragBottomEnd(DragEndDetails _) {
+    final didSnap = _snapBottomEdgeToOtherWindows();
+    if (!didSnap) {
       _trySnapHeight(preserveBottom: false);
+    }
+  }
 
-  void onVerticalDragTopEnd(DragEndDetails _) =>
+  void onVerticalDragTopEnd(DragEndDetails _) {
+    final didSnap = _snapTopEdgeToOtherWindows();
+    if (!didSnap) {
       _trySnapHeight(preserveBottom: true);
+    }
+  }
 
-  void onHorizontalRightDragEnd(DragEndDetails _) =>
+  void onHorizontalRightDragEnd(DragEndDetails _) {
+    final didSnap = _snapRightEdgeToOtherWindows();
+    if (!didSnap) {
       _trySnapWidth(preserveRight: false);
+    }
+  }
 
-  void onHorizontalLeftDragEnd(DragEndDetails _) =>
+  void onHorizontalLeftDragEnd(DragEndDetails _) {
+    final didSnap = _snapLeftEdgeToOtherWindows();
+    if (!didSnap) {
       _trySnapWidth(preserveRight: true);
+    }
+  }
+
+  // ── Edge snapping helpers ──────────────────────────────────────────────────
+
+  bool _snapToNearestEdges() {
+    if (isMaximized || getOtherWindowRects == null) return false;
+    final otherRects = getOtherWindowRects!();
+    const double threshold = 12.0;
+
+    double? snappedX;
+    double? snappedY;
+
+    final myLeft = x;
+    final myRight = x + currentWidth;
+    final myTop = y;
+    final myBottom = y + currentHeight;
+
+    // Canvas boundary snap (0, 0)
+    if (myLeft.abs() < threshold) {
+      snappedX = 0;
+    }
+    if (myTop.abs() < threshold) {
+      snappedY = 0;
+    }
+
+    for (final rect in otherRects) {
+      final oLeft = rect.left;
+      final oRight = rect.right;
+      final oTop = rect.top;
+      final oBottom = rect.bottom;
+
+      // X-axis alignment snap (snap left/right to other's left/right)
+      if ((myLeft - oLeft).abs() < threshold) {
+        snappedX = oLeft;
+      } else if ((myLeft - oRight).abs() < threshold) {
+        snappedX = oRight;
+      } else if ((myRight - oLeft).abs() < threshold) {
+        snappedX = oLeft - currentWidth;
+      } else if ((myRight - oRight).abs() < threshold) {
+        snappedX = oRight - currentWidth;
+      }
+
+      // Y-axis alignment snap (snap top/bottom to other's top/bottom)
+      if ((myTop - oTop).abs() < threshold) {
+        snappedY = oTop;
+      } else if ((myTop - oBottom).abs() < threshold) {
+        snappedY = oBottom;
+      } else if ((myBottom - oTop).abs() < threshold) {
+        snappedY = oTop - currentHeight;
+      } else if ((myBottom - oBottom).abs() < threshold) {
+        snappedY = oBottom - currentHeight;
+      }
+    }
+
+    bool didSnap = false;
+    if (snappedX != null) {
+      x = snappedX;
+      didSnap = true;
+    }
+    if (snappedY != null) {
+      y = snappedY;
+      didSnap = true;
+    }
+
+    if (didSnap) {
+      notifyListeners();
+    }
+    return didSnap;
+  }
+
+  bool _snapRightEdgeToOtherWindows() {
+    if (isMaximized || getOtherWindowRects == null) return false;
+    final otherRects = getOtherWindowRects!();
+    const double threshold = 12.0;
+
+    final myRight = x + currentWidth;
+    double? snappedRight;
+
+    for (final rect in otherRects) {
+      if ((myRight - rect.left).abs() < threshold) {
+        snappedRight = rect.left;
+      } else if ((myRight - rect.right).abs() < threshold) {
+        snappedRight = rect.right;
+      }
+    }
+
+    if (snappedRight != null) {
+      final newW = snappedRight - x;
+      if (newW >= _parameter.minWidth) {
+        currentWidth = newW;
+        notifyListeners();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _snapLeftEdgeToOtherWindows() {
+    if (isMaximized || getOtherWindowRects == null) return false;
+    final otherRects = getOtherWindowRects!();
+    const double threshold = 12.0;
+
+    final myLeft = x;
+    double? snappedLeft;
+
+    if (myLeft.abs() < threshold) {
+      snappedLeft = 0;
+    } else {
+      for (final rect in otherRects) {
+        if ((myLeft - rect.left).abs() < threshold) {
+          snappedLeft = rect.left;
+        } else if ((myLeft - rect.right).abs() < threshold) {
+          snappedLeft = rect.right;
+        }
+      }
+    }
+
+    if (snappedLeft != null) {
+      final rightPos = x + currentWidth;
+      final newW = rightPos - snappedLeft;
+      if (newW >= _parameter.minWidth && snappedLeft >= 0) {
+        x = snappedLeft;
+        currentWidth = newW;
+        notifyListeners();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _snapBottomEdgeToOtherWindows() {
+    if (isMaximized || getOtherWindowRects == null) return false;
+    final otherRects = getOtherWindowRects!();
+    const double threshold = 12.0;
+
+    final myBottom = y + currentHeight;
+    double? snappedBottom;
+
+    for (final rect in otherRects) {
+      if ((myBottom - rect.top).abs() < threshold) {
+        snappedBottom = rect.top;
+      } else if ((myBottom - rect.bottom).abs() < threshold) {
+        snappedBottom = rect.bottom;
+      }
+    }
+
+    if (snappedBottom != null) {
+      final newH = snappedBottom - y;
+      if (newH >= _parameter.minHeight) {
+        currentHeight = newH;
+        notifyListeners();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _snapTopEdgeToOtherWindows() {
+    if (isMaximized || getOtherWindowRects == null) return false;
+    final otherRects = getOtherWindowRects!();
+    const double threshold = 12.0;
+
+    final myTop = y;
+    double? snappedTop;
+
+    if (myTop.abs() < threshold) {
+      snappedTop = 0;
+    } else {
+      for (final rect in otherRects) {
+        if ((myTop - rect.top).abs() < threshold) {
+          snappedTop = rect.top;
+        } else if ((myTop - rect.bottom).abs() < threshold) {
+          snappedTop = rect.bottom;
+        }
+      }
+    }
+
+    if (snappedTop != null) {
+      final bottomPos = y + currentHeight;
+      final newH = bottomPos - snappedTop;
+      if (newH >= _parameter.minHeight && snappedTop >= 0) {
+        y = snappedTop;
+        currentHeight = newH;
+        notifyListeners();
+        return true;
+      }
+    }
+    return false;
+  }
 
   // ── Drag: resize edges ────────────────────────────────────────────────────
 

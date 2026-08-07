@@ -118,9 +118,26 @@ class MdiController extends ChangeNotifier {
   bool onKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
     if (!HardwareKeyboard.instance.isControlPressed) return false;
-    if (!HardwareKeyboard.instance.isAltPressed) return false;
 
     final key = event.logicalKey;
+
+    // Ctrl + Tab -> cycle focus
+    if (key == LogicalKeyboardKey.tab) {
+      if (HardwareKeyboard.instance.isShiftPressed) {
+        moveFocusPrevious();
+      } else {
+        moveFocusNext();
+      }
+      return true;
+    }
+
+    // Ctrl + W or Ctrl + F4 -> close active window
+    if (key == LogicalKeyboardKey.keyW || key == LogicalKeyboardKey.f4) {
+      removeFrontWindow();
+      return true;
+    }
+
+    if (!HardwareKeyboard.instance.isAltPressed) return false;
 
     if (HardwareKeyboard.instance.isShiftPressed) {
       // Ctrl+Alt+Shift+Arrow → move front window by grid step.
@@ -189,6 +206,13 @@ class MdiController extends ChangeNotifier {
 
     final ctrl = ResizeableWindowController(parameter: parameter, child: child);
 
+    ctrl.getOtherWindowRects = () {
+      return _windows.values
+          .where((w) => w != ctrl && !w.isMaximized)
+          .map((w) => Rect.fromLTWH(w.x, w.y, w.currentWidth, w.currentHeight))
+          .toList();
+    };
+
     ctrl.initAction(
       onClose: (t) => removeWindow(t, requestFocusToPrevious: true),
       toggleMaximize: (action) {
@@ -256,6 +280,27 @@ class MdiController extends ChangeNotifier {
     final tags = _windows.keys.toList(growable: false);
     for (final t in tags) {
       _unregisterWindow(t);
+    }
+    _recalculateMdiSize();
+    notifyListeners();
+  }
+
+  List<Map<String, dynamic>> exportLayout() {
+    return _windows.values.map((w) => w.parameterWindow.toJson()).toList();
+  }
+
+  void importLayout(
+    List<Map<String, dynamic>> layoutJson, {
+    required Widget Function(ParameterWindow parameter) childBuilder,
+  }) {
+    removeAllWindows();
+    for (final json in layoutJson) {
+      final param = ParameterWindow.fromJson(json);
+      addWindow(
+        parameter: param,
+        child: (ctrl) => childBuilder(param),
+        notify: false,
+      );
     }
     _recalculateMdiSize();
     notifyListeners();
