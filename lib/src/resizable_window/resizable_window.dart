@@ -65,11 +65,15 @@ class ResizableWindowState extends State<ResizableWindow> {
     return Positioned(
       top: snap(_controller.y),
       left: snap(_controller.x),
-      child: RepaintBoundary(
-        child: Padding(
-          padding: EdgeInsets.all(_controller.widgetPadding),
-          // Pass the snap function down
-          child: _buildWindowChrome(context, snap),
+      child: MouseRegion(
+        onEnter: (_) => _controller.setHover(true),
+        onExit: (_) => _controller.setHover(false),
+        child: RepaintBoundary(
+          child: Padding(
+            padding: EdgeInsets.all(_controller.widgetPadding),
+            // Pass the snap function down
+            child: _buildWindowChrome(context, snap),
+          ),
         ),
       ),
     );

@@ -84,6 +84,7 @@ class ResizeableWindowController extends ChangeNotifier {
   void Function()? _onBringToFront;
   void Function(PointerDownEvent event)? _onStartDrag;
   void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? _onStartResize;
+  void Function(bool isHovering)? _onHoverChange;
 
   // ── Private ───────────────────────────────────────────────────────────────
 
@@ -218,6 +219,7 @@ class ResizeableWindowController extends ChangeNotifier {
     void Function()? onBringToFront,
     void Function(PointerDownEvent event)? onStartDrag,
     void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? onStartResize,
+    void Function(bool isHovering)? onHoverChange,
   }) {
     this.onFocusChange = onFocusChange;
     _onClose = onClose;
@@ -227,6 +229,7 @@ class ResizeableWindowController extends ChangeNotifier {
     _onBringToFront = onBringToFront;
     _onStartDrag = onStartDrag;
     _onStartResize = onStartResize;
+    _onHoverChange = onHoverChange;
   }
 
   @override
@@ -248,6 +251,8 @@ class ResizeableWindowController extends ChangeNotifier {
   }
 
   void bringToFront() => _onBringToFront?.call();
+
+  void setHover(bool isHovering) => _onHoverChange?.call(isHovering);
 
   void startDrag(PointerDownEvent event) {
     if (_shouldIgnoreDrag(event.position)) return;

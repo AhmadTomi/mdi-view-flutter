@@ -56,6 +56,23 @@ class MdiController extends ChangeNotifier {
 
   final MdiTabController tabMenuController = MdiTabController();
 
+  // ── Hover state ───────────────────────────────────────────────────────────
+
+  final Set<String> _hoveredWindows = {};
+  bool get isHoveringAnyWindow => _hoveredWindows.isNotEmpty;
+
+  void setWindowHover(String tag, bool isHovering) {
+    final bool wasHovering = isHoveringAnyWindow;
+    if (isHovering) {
+      _hoveredWindows.add(tag);
+    } else {
+      _hoveredWindows.remove(tag);
+    }
+    if (wasHovering != isHoveringAnyWindow) {
+      notifyListeners();
+    }
+  }
+
   // ── Private helpers ───────────────────────────────────────────────────────
 
   final _Debouncer _debouncer = _Debouncer(milliseconds: 100);
@@ -269,6 +286,7 @@ class MdiController extends ChangeNotifier {
       onBringToFront: () => bringToFront(ctrl.tag),
       onStartDrag: (event) => startDrag(ctrl, event),
       onStartResize: (event, {side, corner}) => startResize(ctrl, event, side: side, corner: corner),
+      onHoverChange: (isHovering) => setWindowHover(ctrl.tag, isHovering),
     );
 
     if (isMaximize) ctrl.toggleMaximize(screenSize, true);
@@ -382,6 +400,7 @@ class MdiController extends ChangeNotifier {
             });
           },
           onArgumentUpdate: (_) => _emitWindowChange(ctrl.tag),
+          onHoverChange: (isHovering) => setWindowHover(ctrl.tag, isHovering),
         );
         
         if (isMaximize) ctrl.toggleMaximize(screenSize, true);
@@ -532,6 +551,7 @@ class MdiController extends ChangeNotifier {
   void _unregisterWindow(String tag) {
     final ctrl = _windows.remove(tag);
     if (ctrl == null) return;
+    _hoveredWindows.remove(tag);
     tabMenuController.removeTab(tag);
     _emitWindowChange(ctrl.tag);
     ctrl.dispose();

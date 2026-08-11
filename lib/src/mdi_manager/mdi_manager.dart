@@ -110,7 +110,7 @@ class _MdiCanvas extends StatelessWidget {
                 PointerDeviceKind.trackpad,
               },
               scrollbars: false,
-              physics: isMax
+              physics: (isMax || controller.isHoveringAnyWindow)
                   ? const NeverScrollableScrollPhysics()
                   : const ClampingScrollPhysics(),
             ),

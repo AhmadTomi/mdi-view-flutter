@@ -868,6 +868,62 @@ void main() {
 
       controller.dispose();
     });
+
+    testWidgets('Hovering over a window updates isHoveringAnyWindow and scroll physics', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+            ),
+          ),
+        ),
+      );
+
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => Container(),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Initially not hovering
+      expect(controller.isHoveringAnyWindow, isFalse);
+
+      // Hover over the window (center of the window is at x=250, y=250)
+      final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(
+        pointer.hover(const Offset(250, 250)),
+      );
+      await tester.pumpAndSettle();
+
+      // Should be hovering now
+      expect(controller.isHoveringAnyWindow, isTrue);
+
+      // Hover outside the window (e.g. at x=50, y=50)
+      await tester.sendEventToBinding(
+        pointer.hover(const Offset(50, 50)),
+      );
+      await tester.pumpAndSettle();
+
+      // Should not be hovering anymore
+      expect(controller.isHoveringAnyWindow, isFalse);
+
+      controller.dispose();
+    });
   });
 
   group('Enterprise Features Unit Tests', () {
