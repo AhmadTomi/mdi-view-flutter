@@ -81,6 +81,9 @@ class ResizeableWindowController extends ChangeNotifier {
   _ScreenAction? _toggleMaximize;
   _PositionChangeCallback? _onPositionChange;
   _ArgumentUpdateCallback? _onArgumentUpdate;
+  void Function()? _onBringToFront;
+  void Function(PointerDownEvent event)? _onStartDrag;
+  void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? _onStartResize;
 
   // ── Private ───────────────────────────────────────────────────────────────
 
@@ -89,9 +92,9 @@ class ResizeableWindowController extends ChangeNotifier {
 
   bool _isDisposed = false;
 
-  // Double-tap detection state
-  int _lastTapTimestamp = 0;
-  int _consecutiveTaps = 1;
+  // Pan-drag state for GestureDetector-based header dragging
+  Offset? _panDragStart;
+  Offset? _panPointerStart;
 
   // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -110,7 +113,7 @@ class ResizeableWindowController extends ChangeNotifier {
         currentHeight = parameter.currentHeight;
 
   late final Widget widget = ResizableWindow(
-    key: ValueKey(tag),
+    key: GlobalObjectKey(this),
     controller: this,
   );
 
@@ -124,6 +127,9 @@ class ResizeableWindowController extends ChangeNotifier {
 
   double get xBound => x + currentWidth;
   double get yBound => y + currentHeight;
+
+  double get minWidth => _parameter.minWidth;
+  double get minHeight => _parameter.minHeight;
 
   Map<String, dynamic> get argument => Map.unmodifiable(_argument);
 
@@ -150,12 +156,18 @@ class ResizeableWindowController extends ChangeNotifier {
     _ScreenAction? toggleMaximize,
     _PositionChangeCallback? onPositionChange,
     _ArgumentUpdateCallback? onArgumentUpdate,
+    void Function()? onBringToFront,
+    void Function(PointerDownEvent event)? onStartDrag,
+    void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? onStartResize,
   }) {
     this.onFocusChange = onFocusChange;
     _onClose = onClose;
     _toggleMaximize = toggleMaximize;
     _onPositionChange = onPositionChange;
     _onArgumentUpdate = onArgumentUpdate;
+    _onBringToFront = onBringToFront;
+    _onStartDrag = onStartDrag;
+    _onStartResize = onStartResize;
   }
 
   @override
@@ -174,6 +186,32 @@ class ResizeableWindowController extends ChangeNotifier {
     if (!focusScopeNode.hasFocus) {
       focusScopeNode.requestScopeFocus();
     }
+  }
+
+  void bringToFront() => _onBringToFront?.call();
+
+  void startDrag(PointerDownEvent event) => _onStartDrag?.call(event);
+
+  void startResize(PointerDownEvent event, {EdgeSide? side, CornerSide? corner}) =>
+      _onStartResize?.call(event, side: side, corner: corner);
+
+  void updatePosition(double x, double y) {
+    this.x = x;
+    this.y = y;
+    notifyListeners();
+  }
+
+  void updateGeometry({
+    required double x,
+    required double y,
+    required double width,
+    required double height,
+  }) {
+    this.x = x;
+    this.y = y;
+    currentWidth = width;
+    currentHeight = height;
+    notifyListeners();
   }
 
   /// Fires after any drag/resize that should persist the new geometry.
@@ -265,40 +303,54 @@ class ResizeableWindowController extends ChangeNotifier {
 
   // ── Drag: move window ─────────────────────────────────────────────────────
 
-  /// Returns a [GestureDetector] that handles dragging the window and
-  /// optionally double-tapping to toggle maximise.
+  /// Returns a widget that handles dragging the window and optionally
+  /// double-tapping to toggle maximise.
+  ///
+  /// When [canDoubleClick] is true, uses [GestureDetector] with both
+  /// [onDoubleTap] and pan callbacks so the gesture arena properly
+  /// distinguishes double-taps from drags — matching the pattern used
+  /// by [_TapTarget] in `mdi_tab_widget.dart`.
   Widget dragWidget({required Widget child, bool canDoubleClick = true}) {
-    return GestureDetector(
-      supportedDevices: const {PointerDeviceKind.mouse},
-      onTap: () {
-        requestFocus();
-        if (!canDoubleClick) return;
-        final now = DateTime.now().millisecondsSinceEpoch;
-        if (now - _lastTapTimestamp < 300) {
-          _consecutiveTaps++;
-          if (_consecutiveTaps >= 2) {
-            _toggleMaximize?.call((s) => toggleMaximize(s));
-            _consecutiveTaps = 1;
+    if (canDoubleClick) {
+      return GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onDoubleTap: () {
+          _toggleMaximize?.call((s) => toggleMaximize(s));
+        },
+        onPanStart: (details) {
+          if (isMaximized) return;
+          bringToFront();
+          // Store drag origin so onPanUpdate can compute deltas.
+          _panDragStart = Offset(x, y);
+          _panPointerStart = details.globalPosition;
+        },
+        onPanUpdate: (details) {
+          if (isMaximized || _panDragStart == null) return;
+          final delta = details.globalPosition - _panPointerStart!;
+          x = (_panDragStart!.dx + delta.dx).clamp(0.0, double.infinity);
+          y = (_panDragStart!.dy + delta.dy).clamp(0.0, double.infinity);
+          notifyListeners();
+        },
+        onPanEnd: (details) {
+          _panDragStart = null;
+          _panPointerStart = null;
+          if (!isMaximized) {
+            snapWindowPosition();
+            positionChangeAction();
           }
-        } else {
-          _consecutiveTaps = 1;
+        },
+        child: child,
+      );
+    }
+
+    // No double-click: use raw Listener for immediate drag via canvas-level
+    // pointer tracking (e.g. for body drag and unfocus blocker).
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        if (event.kind == PointerDeviceKind.mouse) {
+          startDrag(event);
         }
-        _lastTapTimestamp = now;
-      },
-      onPanStart: (_) {
-        if (!isMaximized) requestFocus();
-      },
-      onPanUpdate: (details) {
-        if (isMaximized) return;
-        requestFocus();
-        x = (x + details.delta.dx).clamp(0.0, double.infinity);
-        y = (y + details.delta.dy).clamp(0.0, double.infinity);
-        notifyListeners();
-      },
-      onPanEnd: (_) {
-        if (isMaximized) return;
-        _snapWindowPosition();
-        positionChangeAction();
       },
       child: child,
     );
@@ -306,7 +358,7 @@ class ResizeableWindowController extends ChangeNotifier {
 
   // ── Drag-end snap helpers ─────────────────────────────────────────────────
 
-  void _snapWindowPosition() {
+  void snapWindowPosition() {
     final snappedToEdge = _snapToNearestEdges();
     if (!snappedToEdge) {
       final snapped = _snapSize(

@@ -66,70 +66,60 @@ class _DummyWidgetState extends State<DummyWidget> {
 
     ctrl?.onKeyEvent = _onKeyEvent;
 
-    return Column(
-      children: [
-        ctrl?.dragWidget(
-              child: Container(
-                color: Colors.blue.shade700,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                height: 30,
-                alignment: Alignment.center,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        "${ctrl.tag}",
-                        style: const TextStyle(color: Colors.white),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.transparent,
+      alignment: Alignment.topLeft,
+      width: double.infinity, // Ensure it fills the space
+      height: double.infinity,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '''${ctrl?.tag} Lorem Ipsum is simply dummy text...''',
+            ),
+            TextFormField(focusNode: focusNode),
+            // If you need the controller (e.g., for a button):
+            TextButton(
+              onPressed: () {
+                // This is how you access the controller now!
+                ctrl?.close();
+              },
+              child: const Text("Close from inside"),
+            ),
+            ElevatedButton(onPressed: (){
+              showDialog(
+                  context: context,
+                  useRootNavigator: false,
+                  builder: (context) {
+                return AlertDialog(
+                  // To display the title it is optional
+                  title: Text('Welcome'),
+                  // Message which will be pop up on the screen
+                  content: Text('GeeksforGeeks'),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: Text('CANCEL'),
                     ),
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 16,
-                      visualDensity: const VisualDensity(
-                        horizontal: -4,
-                        vertical: -4,
-                      ),
-                      onPressed: () => ctrl.close(), // Close button
-                      icon: const Icon(Icons.close, color: Colors.white),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: Text('ACCEPT'),
                     ),
                   ],
-                ),
-              ),
-            ) ??
-            const SizedBox(),
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            alignment: Alignment.topLeft,
-            width: double.infinity, // Ensure it fills the space
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '''
-                      ${ctrl?.tag} Lorem Ipsum is simply dummy text...
-                                  ''',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  TextFormField(focusNode: focusNode),
-                  // If you need the controller (e.g., for a button):
-                  TextButton(
-                    onPressed: () {
-                      // This is how you access the controller now!
-                      ctrl?.close();
-                    },
-                    child: const Text("Close from inside"),
-                  ),
-                ],
-              ),
-            ),
-          ),
+                );
+              });
+            }, child: Text("Show Dialog"))
+          ],
         ),
-      ],
+      ),
     );
   }
 }

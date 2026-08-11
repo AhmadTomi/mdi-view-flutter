@@ -163,6 +163,10 @@ class ParameterWindow {
       logDebug('argument mismatch -> this: $argument, other: ${other.argument}');
       isEqual = false;
     }
+    if (!_mapsEqual(argument, other.argument)) {
+      logDebug('argument mismatch -> this: $argument, other: ${other.argument}');
+      isEqual = false;
+    }
     if (currentWidth != other.currentWidth) {
       logDebug('currentWidth mismatch -> this: $currentWidth, other: ${other.currentWidth}');
       isEqual = false;

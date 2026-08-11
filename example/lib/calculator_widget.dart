@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:mdi_view/mdi_view.dart';
 
 class CalculatorWidget extends StatefulWidget {
   const CalculatorWidget({super.key});
@@ -86,41 +85,8 @@ class _CalculatorWidgetState extends State<CalculatorWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final ctrl = ResizableWindowProvider.of(context);
-
     return Column(
       children: [
-        // Title Bar (Drag Handler)
-        ctrl?.dragWidget(
-              child: Container(
-                color: Colors.blue.shade800,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                height: 30,
-                alignment: Alignment.center,
-                child: Row(
-                  children: [
-                    const Icon(Icons.calculate, color: Colors.white, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        ctrl.title,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 16,
-                      visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-                      onPressed: () => ctrl.close(),
-                      icon: const Icon(Icons.close, color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-            ) ??
-            const SizedBox(),
-
         // Display
         Expanded(
           child: Container(

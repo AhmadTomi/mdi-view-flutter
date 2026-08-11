@@ -91,11 +91,14 @@ class _MdiCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(1.0),
-      child: LayoutBuilder(
-        builder: (ctx, constraints) {
-          _updateScreenSize(constraints.biggest);
+    return Listener(
+      onPointerMove: controller.onPointerMove,
+      onPointerUp: controller.onPointerUp,
+      child: Padding(
+        padding: const EdgeInsets.all(1.0),
+        child: LayoutBuilder(
+          builder: (ctx, constraints) {
+            _updateScreenSize(constraints.biggest);
 
           final isMax = controller.isMaximize;
 
@@ -174,8 +177,9 @@ class _MdiCanvas extends StatelessWidget {
           );
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _updateScreenSize(Size size) {
     if (controller.mdiSize == Size.zero) {
@@ -200,7 +204,7 @@ class _MdiCanvas extends StatelessWidget {
         );
       }
       controller.tabMenuController.tabScrollCheck();
-      controller.notifyListeners();
+      controller.rebuild();
     });
   }
 }

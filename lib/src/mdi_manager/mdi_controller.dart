@@ -266,6 +266,9 @@ class MdiController extends ChangeNotifier {
         });
       },
       onArgumentUpdate: (_) => _emitWindowChange(ctrl.tag),
+      onBringToFront: () => bringToFront(ctrl.tag),
+      onStartDrag: (event) => startDrag(ctrl, event),
+      onStartResize: (event, {side, corner}) => startResize(ctrl, event, side: side, corner: corner),
     );
 
     if (isMaximize) ctrl.toggleMaximize(screenSize, true);
@@ -417,7 +420,11 @@ class MdiController extends ChangeNotifier {
     final ctrl = _windows.remove(tag)!;
     _windows[tag] = ctrl;
 
-    ctrl.toggleMaximize(screenSize, maximize);
+    // Only force-maximize when explicitly requested.  Never force-unmaximize
+    // here — the window's own isMaximized state is authoritative.
+    if (maximize) {
+      ctrl.toggleMaximize(screenSize, true);
+    }
     if (!isMaximize) scrollTo(ctrl.x, ctrl.y);
 
     notifyListeners();
@@ -430,6 +437,8 @@ class MdiController extends ChangeNotifier {
     frontWindow?.toggleMaximize(screenSize, isMaximize);
     notifyListeners();
   }
+
+  void rebuild() => notifyListeners();
 
   void onFocusChange(bool value) {
     hasFocus = value;
@@ -563,8 +572,10 @@ class MdiController extends ChangeNotifier {
           oldFront.toggleMaximize(screenSize, false);
         });
       }
-    } else if (hasFocus) {
-      ctrl.toggleMaximize(screenSize, isMaximize);
+    } else {
+      if (isMaximize) {
+        ctrl.toggleMaximize(screenSize, true);
+      }
     }
   }
 
@@ -573,7 +584,6 @@ class MdiController extends ChangeNotifier {
     final tabs = tabMenuController.tabControllers;
     final current = tabs.indexWhere((c) => c.tag == frontWindow?.tag);
     if (current == -1) return;
-    final next = (current + direction).clamp(0, tabs.length - 1);
     final wrapped =
         (current + direction + tabs.length) % tabs.length;
     // Use wrapped index so navigation cycles through all tabs.
@@ -607,6 +617,135 @@ class MdiController extends ChangeNotifier {
       milliseconds: (distance * speed).toInt().clamp(minMs, maxMs),
     );
   }
+
+  // ── Global Drag & Resize tracking ─────────────────────────────────────────
+
+  ResizeableWindowController? _draggedWindow;
+  Offset? _dragPointerStart;
+  Offset? _dragWindowStart;
+
+  ResizeableWindowController? _resizedWindow;
+  EdgeSide? _resizedSide;
+  CornerSide? _resizedCorner;
+  Offset? _resizePointerStart;
+  Rect? _resizeWindowStartRect;
+
+  void startDrag(ResizeableWindowController window, PointerDownEvent event) {
+    _draggedWindow = window;
+    _dragPointerStart = event.position;
+    _dragWindowStart = Offset(window.x, window.y);
+    bringToFront(window.tag, focus: true);
+  }
+
+  void startResize(
+    ResizeableWindowController window,
+    PointerDownEvent event, {
+    EdgeSide? side,
+    CornerSide? corner,
+  }) {
+    _resizedWindow = window;
+    _resizedSide = side;
+    _resizedCorner = corner;
+    _resizePointerStart = event.position;
+    _resizeWindowStartRect = Rect.fromLTWH(window.x, window.y, window.currentWidth, window.currentHeight);
+    bringToFront(window.tag, focus: true);
+  }
+
+  void onPointerMove(PointerMoveEvent event) {
+    if (_draggedWindow != null) {
+      if (_draggedWindow!.isMaximized) return;
+      final delta = event.position - _dragPointerStart!;
+      _draggedWindow!.updatePosition(
+        (_dragWindowStart!.dx + delta.dx).clamp(0.0, double.infinity),
+        (_dragWindowStart!.dy + delta.dy).clamp(0.0, double.infinity),
+      );
+    } else if (_resizedWindow != null) {
+      if (_resizedWindow!.isMaximized) return;
+      final delta = event.position - _resizePointerStart!;
+      final r = _resizeWindowStartRect!;
+
+      double newX = r.left;
+      double newY = r.top;
+      double newW = r.width;
+      double newH = r.height;
+
+      if (_resizedSide != null) {
+        switch (_resizedSide!) {
+          case EdgeSide.right:
+            newW = (r.width + delta.dx).clamp(_resizedWindow!.minWidth, double.infinity);
+          case EdgeSide.left:
+            final maxDeltaX = r.width - _resizedWindow!.minWidth;
+            final dx = delta.dx.clamp(-double.infinity, maxDeltaX);
+            newX = r.left + dx;
+            newW = r.width - dx;
+          case EdgeSide.top:
+            final maxDeltaY = r.height - _resizedWindow!.minHeight;
+            final dy = delta.dy.clamp(-double.infinity, maxDeltaY);
+            newY = r.top + dy;
+            newH = r.height - dy;
+          case EdgeSide.bottom:
+            newH = (r.height + delta.dy).clamp(_resizedWindow!.minHeight, double.infinity);
+        }
+      } else if (_resizedCorner != null) {
+        switch (_resizedCorner!) {
+          case CornerSide.bottomRight:
+            newW = (r.width + delta.dx).clamp(_resizedWindow!.minWidth, double.infinity);
+            newH = (r.height + delta.dy).clamp(_resizedWindow!.minHeight, double.infinity);
+          case CornerSide.bottomLeft:
+            final maxDeltaX = r.width - _resizedWindow!.minWidth;
+            final dx = delta.dx.clamp(-double.infinity, maxDeltaX);
+            newX = r.left + dx;
+            newW = r.width - dx;
+            newH = (r.height + delta.dy).clamp(_resizedWindow!.minHeight, double.infinity);
+          case CornerSide.topRight:
+            newW = (r.width + delta.dx).clamp(_resizedWindow!.minWidth, double.infinity);
+            final maxDeltaY = r.height - _resizedWindow!.minHeight;
+            final dy = delta.dy.clamp(-double.infinity, maxDeltaY);
+            newY = r.top + dy;
+            newH = r.height - dy;
+          case CornerSide.topLeft:
+            final maxDeltaX = r.width - _resizedWindow!.minWidth;
+            final dx = delta.dx.clamp(-double.infinity, maxDeltaX);
+            newX = r.left + dx;
+            newW = r.width - dx;
+            final maxDeltaY = r.height - _resizedWindow!.minHeight;
+            final dy = delta.dy.clamp(-double.infinity, maxDeltaY);
+            newY = r.top + dy;
+            newH = r.height - dy;
+        }
+      }
+
+      _resizedWindow!.updateGeometry(
+        x: newX.clamp(0.0, double.infinity),
+        y: newY.clamp(0.0, double.infinity),
+        width: newW,
+        height: newH,
+      );
+    }
+  }
+
+  void onPointerUp(PointerUpEvent event) {
+    if (_draggedWindow != null) {
+      final ctrl = _draggedWindow!;
+      _draggedWindow = null;
+      _dragPointerStart = null;
+      _dragWindowStart = null;
+      if (!ctrl.isMaximized) {
+        ctrl.snapWindowPosition();
+        ctrl.positionChangeAction();
+      }
+      notifyListeners();
+    } else if (_resizedWindow != null) {
+      final ctrl = _resizedWindow!;
+      _resizedWindow = null;
+      _resizedSide = null;
+      _resizedCorner = null;
+      _resizePointerStart = null;
+      _resizeWindowStartRect = null;
+      ctrl.positionChangeAction();
+      notifyListeners();
+    }
+  }
 }
 
 // ── _Debouncer ────────────────────────────────────────────────────────────────
@@ -625,8 +764,4 @@ class _Debouncer {
   void dispose() => _timer?.cancel();
 }
 
-// ── Tiny extension ────────────────────────────────────────────────────────────
 
-extension _Let<T> on T {
-  R let<R>(R Function(T) block) => block(this);
-}

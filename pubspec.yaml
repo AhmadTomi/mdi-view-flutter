@@ -1,6 +1,6 @@
 name: mdi_view
 description: "flutter widget for providing multi document support for flutter app"
-version: 0.1.0
+version: 0.0.5
 homepage: https://github.com/AhmadTomi/mdi-view-flutter.git
 
 environment:

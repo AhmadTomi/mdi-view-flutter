@@ -59,6 +59,14 @@ class MdiStyleConfiguration {
   // ── Layout ────────────────────────────────────────────────────────────────
   final int gap;
 
+  // ── Default Header ────────────────────────────────────────────────────────
+  final Color focusedHeaderColor;
+  final Color unfocusedHeaderColor;
+  final Color defaultHeaderTextColor;
+  final double defaultHeaderHeight;
+  final bool showDefaultHeader;
+  final bool draggableBody;
+
   // ── Factory defaults ──────────────────────────────────────────────────────
 
   /// Pre-built configuration used when no [MdiStyleProvider] is in scope.
@@ -81,6 +89,12 @@ class MdiStyleConfiguration {
     required this.unfocusBlockerColor,
     required this.borderWidth,
     required this.borderRadius,
+    required this.focusedHeaderColor,
+    required this.unfocusedHeaderColor,
+    required this.defaultHeaderTextColor,
+    required this.defaultHeaderHeight,
+    required this.showDefaultHeader,
+    required this.draggableBody,
   });
 
   factory MdiStyleConfiguration({
@@ -100,6 +114,12 @@ class MdiStyleConfiguration {
     Color? unfocusBlockerColor,
     int borderWidth = 1,
     int borderRadius = 4,
+    Color? focusedHeaderColor,
+    Color? unfocusedHeaderColor,
+    Color? defaultHeaderTextColor,
+    double defaultHeaderHeight = 30.0,
+    bool showDefaultHeader = true,
+    bool draggableBody = true,
   }) {
     return MdiStyleConfiguration._raw(
       gap: gap,
@@ -119,6 +139,12 @@ class MdiStyleConfiguration {
       unfocusBlockerColor ?? Colors.grey.withValues(alpha: 0.2),
       borderWidth: borderWidth,
       borderRadius: borderRadius,
+      focusedHeaderColor: focusedHeaderColor ?? Colors.blue,
+      unfocusedHeaderColor: unfocusedHeaderColor ?? Colors.blueGrey,
+      defaultHeaderTextColor: defaultHeaderTextColor ?? Colors.white,
+      defaultHeaderHeight: defaultHeaderHeight,
+      showDefaultHeader: showDefaultHeader,
+      draggableBody: draggableBody,
     );
   }
 
@@ -141,6 +167,12 @@ class MdiStyleConfiguration {
     Color? unfocusBlockerColor,
     int? borderWidth,
     int? borderRadius,
+    Color? focusedHeaderColor,
+    Color? unfocusedHeaderColor,
+    Color? defaultHeaderTextColor,
+    double? defaultHeaderHeight,
+    bool? showDefaultHeader,
+    bool? draggableBody,
   }) =>
       MdiStyleConfiguration._raw(
         gap: gap ?? this.gap,
@@ -164,6 +196,12 @@ class MdiStyleConfiguration {
         unfocusBlockerColor: unfocusBlockerColor ?? this.unfocusBlockerColor,
         borderWidth: borderWidth ?? this.borderWidth,
         borderRadius: borderRadius ?? this.borderRadius,
+        focusedHeaderColor: focusedHeaderColor ?? this.focusedHeaderColor,
+        unfocusedHeaderColor: unfocusedHeaderColor ?? this.unfocusedHeaderColor,
+        defaultHeaderTextColor: defaultHeaderTextColor ?? this.defaultHeaderTextColor,
+        defaultHeaderHeight: defaultHeaderHeight ?? this.defaultHeaderHeight,
+        showDefaultHeader: showDefaultHeader ?? this.showDefaultHeader,
+        draggableBody: draggableBody ?? this.draggableBody,
       );
 
   // ── Equality / hashing ────────────────────────────────────────────────────
@@ -187,7 +225,13 @@ class MdiStyleConfiguration {
         tabSplashColor == other.tabSplashColor &&
         unfocusBlockerColor == other.unfocusBlockerColor &&
         borderWidth == other.borderWidth &&
-        borderRadius == other.borderRadius;
+        borderRadius == other.borderRadius &&
+        focusedHeaderColor == other.focusedHeaderColor &&
+        unfocusedHeaderColor == other.unfocusedHeaderColor &&
+        defaultHeaderTextColor == other.defaultHeaderTextColor &&
+        defaultHeaderHeight == other.defaultHeaderHeight &&
+        showDefaultHeader == other.showDefaultHeader &&
+        draggableBody == other.draggableBody;
   }
 
   @override
@@ -208,5 +252,11 @@ class MdiStyleConfiguration {
     unfocusBlockerColor,
     borderWidth,
     borderRadius,
+    focusedHeaderColor,
+    unfocusedHeaderColor,
+    defaultHeaderTextColor,
+    defaultHeaderHeight,
+    showDefaultHeader,
+    draggableBody,
   ]);
 }

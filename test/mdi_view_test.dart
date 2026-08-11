@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mdi_view/mdi_view.dart';
@@ -80,6 +81,23 @@ void main() {
       expect(copy.currentWidth, 200);
       expect(copy.id, '1'); // Should retain original
     });
+
+  });
+
+  group('MdiStyleConfiguration Unit Tests', () {
+    test('showDefaultHeader and draggableBody work with defaults and copyWith', () {
+      final style = MdiStyleConfiguration();
+      expect(style.showDefaultHeader, true);
+      expect(style.draggableBody, true);
+
+      final custom = MdiStyleConfiguration(showDefaultHeader: false, draggableBody: false);
+      expect(custom.showDefaultHeader, false);
+      expect(custom.draggableBody, false);
+
+      final copy = custom.copyWith(showDefaultHeader: true);
+      expect(copy.showDefaultHeader, true);
+      expect(copy.draggableBody, false);
+    });
   });
 
   group('MdiManager Widget Tests', () {
@@ -111,8 +129,425 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify window is in the tree
-      expect(find.text(windowTitle), findsOneWidget); // In tab bar
+      expect(find.text(windowTitle), findsNWidgets(2)); // One in tab bar, one in window title bar
       expect(find.text('Window Content'), findsOneWidget); // Content
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager allows showing dialogs from window content', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      controller.addWindow(
+        parameter: const ParameterWindow(title: 'Dialog Test', id: '1'),
+        child: (c) => Builder(
+          builder: (context) {
+            return ElevatedButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const AlertDialog(
+                    title: Text('Dialog Title'),
+                    content: Text('Dialog Content'),
+                  ),
+                );
+              },
+              child: const Text('Show Dialog'),
+            );
+          },
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Tap the button to show dialog
+      await tester.tap(find.text('Show Dialog'));
+      await tester.pumpAndSettle();
+
+      // Verify dialog is in the tree
+      expect(find.text('Dialog Title'), findsOneWidget);
+      expect(find.text('Dialog Content'), findsOneWidget);
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager allows showing dialogs nested inside the window context', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      controller.addWindow(
+        parameter: const ParameterWindow(title: 'Dialog Test', id: '1'),
+        child: (c) => Builder(
+          builder: (context) {
+            return ElevatedButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  useRootNavigator: false, // Target local navigator!
+                  builder: (context) => const AlertDialog(
+                    title: Text('Nested Title'),
+                    content: Text('Nested Content'),
+                  ),
+                );
+              },
+              child: const Text('Show Nested Dialog'),
+            );
+          },
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Tap the button
+      await tester.tap(find.text('Show Nested Dialog'));
+      await tester.pumpAndSettle();
+
+      // Verify dialog is a descendant of ResizableWindow (restricted bounds)
+      final dialogFinder = find.text('Nested Title');
+      final windowFinder = find.byType(ResizableWindow);
+      expect(find.descendant(of: windowFinder, matching: dialogFinder), findsOneWidget);
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager absorbs pointers and blocks button interaction on unfocused windows', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      int clickCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W1', id: '1', x: 20, y: 20),
+        child: (c) => ElevatedButton(
+          onPressed: () => clickCount++,
+          child: const Text('Button 1'),
+        ),
+      );
+
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W2', id: '2', x: 250, y: 20),
+        child: (c) => Container(),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Focus should be on W2 (since it was added last)
+      expect(controller.frontWindow, w2);
+      expect(w1.hasFocus, false);
+
+      // Tap Button 1 inside unfocused W1
+      await tester.tap(find.text('Button 1'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Verify W1 is now focused, but clickCount is still 0 (blocked!)
+      expect(controller.frontWindow, w1);
+      expect(w1.hasFocus, true);
+      expect(clickCount, 0);
+
+      // Tap Button 1 again (now that it is focused)
+      await tester.tap(find.text('Button 1'));
+      await tester.pumpAndSettle();
+
+      // Verify clickCount is now 1 (interaction allowed!)
+      expect(clickCount, 1);
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager absorbs pointers and blocks nested dialog interaction on unfocused windows', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      int cancelClickCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W1', id: '1', x: 20, y: 20),
+        child: (c) => Builder(
+          builder: (context) {
+            return ElevatedButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  useRootNavigator: false,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Nested Dialog'),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          cancelClickCount++;
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text('Cancel Button'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              child: const Text('Open Dialog'),
+            );
+          },
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Open the dialog inside W1
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+      expect(find.text('Nested Dialog'), findsOneWidget);
+
+      // Add a second window W2 to unfocus W1 (and its dialog)
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W2', id: '2', x: 250, y: 20),
+        child: (c) => Container(),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Focus should be on W2
+      expect(controller.frontWindow, w2);
+      expect(w1.hasFocus, false);
+
+      // Tap Cancel Button in unfocused W1's dialog
+      await tester.tap(find.text('Cancel Button'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Verify W1 is now focused, dialog is still open, and cancelClickCount is 0 (blocked!)
+      expect(controller.frontWindow, w1);
+      expect(w1.hasFocus, true);
+      expect(find.text('Nested Dialog'), findsOneWidget);
+      expect(cancelClickCount, 0);
+
+      // Tap Cancel Button again (now that it is focused)
+      await tester.tap(find.text('Cancel Button'));
+      await tester.pumpAndSettle();
+
+      // Verify dialog is closed and cancelClickCount is 1
+      expect(find.text('Nested Dialog'), findsNothing);
+      expect(cancelClickCount, 1);
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager allows dragging an unfocused window seamlessly in a single gesture', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W1', id: '1', x: 20, y: 20, currentWidth: 200, currentHeight: 200),
+        child: (c) => Container(color: Colors.red),
+      );
+
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W2', id: '2', x: 250, y: 20, currentWidth: 200, currentHeight: 200),
+        child: (c) => Container(color: Colors.blue),
+      );
+
+      await tester.pumpAndSettle();
+
+      // W2 should have focus
+      expect(controller.frontWindow, w2);
+      expect(w1.hasFocus, false);
+
+      // Perform a seamless drag gesture on unfocused window W1
+      // Start in the center of W1
+      final w1Center = tester.getCenter(find.byWidget(w1.widget));
+      await tester.dragFrom(w1Center, const Offset(50, 50), kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      // Verify W1 has gained focus and successfully moved
+      expect(controller.frontWindow, w1);
+      expect(w1.hasFocus, true);
+      expect(w1.x, 70); // 20 + 50
+      expect(w1.y, 70); // 20 + 50
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager allows double-tapping window header to toggle maximize', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 20,
+          y: 20,
+          currentWidth: 200,
+          currentHeight: 200,
+        ),
+        child: (c) => Container(color: Colors.red),
+      );
+
+      await tester.pumpAndSettle();
+
+      final headerFinder = find.descendant(
+        of: find.byType(ResizableWindow),
+        matching: find.text('W1'),
+      );
+      expect(headerFinder, findsOneWidget);
+
+      await tester.tap(headerFinder);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(headerFinder);
+      await tester.pumpAndSettle();
+
+      expect(w1.isMaximized, true);
+      expect(w1.x, 0.0);
+      expect(w1.y, 0.0);
+
+      // Verify that a single click on a maximized window's header does NOT unmaximize it
+      await tester.tap(headerFinder);
+      await tester.pump(const Duration(milliseconds: 350)); // Wait past double-tap timeout
+      await tester.pumpAndSettle();
+
+      expect(w1.isMaximized, true);
+      expect(w1.x, 0.0);
+      expect(w1.y, 0.0);
+
+      // Verify double-tapping again successfully restores/unmaximizes it
+      await tester.tap(headerFinder);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(headerFinder);
+      await tester.pumpAndSettle();
+
+      expect(w1.isMaximized, false);
+      expect(w1.x, 20.0);
+      expect(w1.y, 20.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager maximizes the next focused window when the active maximized window is closed', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 20,
+          y: 20,
+          currentWidth: 200,
+          currentHeight: 200,
+        ),
+        child: (c) => Container(color: Colors.red),
+      );
+
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W2',
+          id: '2',
+          x: 40,
+          y: 40,
+          currentWidth: 200,
+          currentHeight: 200,
+        ),
+        child: (c) => Container(color: Colors.blue),
+      );
+
+      await tester.pumpAndSettle();
+
+      final header2Finder = find.descendant(
+        of: find.byType(ResizableWindow),
+        matching: find.text('W2'),
+      );
+      expect(header2Finder, findsOneWidget);
+
+      await tester.tap(header2Finder);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(header2Finder);
+      await tester.pumpAndSettle();
+
+      expect(w2.isMaximized, true);
+      expect(w1.isMaximized, false);
+
+      await controller.removeWindow(w2.tag, requestFocusToPrevious: true);
+      await tester.pumpAndSettle();
+
+      expect(controller.frontWindow, w1);
+      expect(w1.isMaximized, true);
+      expect(w1.x, 0.0);
+      expect(w1.y, 0.0);
 
       controller.dispose();
     });
@@ -183,7 +618,7 @@ void main() {
       controller.init();
       controller.screenSize = const Size(1000, 800);
 
-      final w1 = controller.addWindow(
+      controller.addWindow(
         parameter: const ParameterWindow(
           title: 'W1',
           id: '1',
