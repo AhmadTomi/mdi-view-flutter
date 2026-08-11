@@ -1,3 +1,15 @@
+## 0.0.6
+
+* **Pointer Drag Interception & Ignore Mechanics**:
+  - Introduced the `IgnoreWindowDrag` widget to explicitly wrap interactive child components (such as WebViews, maps, or drawing canvases) and prevent parent MDI window dragging.
+  - Implemented automatic pointer down hit-testing that traverses the child render tree to detect viewports (`RenderAbstractViewport`), platform views (covering `InAppWebView`, native maps, etc.), and text inputs (`RenderEditable` and `_RenderDecoration`), automatically bypassing window dragging over these areas.
+* **Scroll & Pointer Signal Propagation Blocking**:
+  - Wrapped window content areas with `NotificationListener<ScrollNotification>` to prevent child scroll/overscroll bubble notifications from reaching the MDI canvas.
+  - Intercepted `PointerScrollEvent`s (mouse wheel and trackpad scroll signals) at the window boundary using `PointerSignalResolver` to consume them locally, preventing desktop canvas scrolling.
+* **Diagnostics & Demos**:
+  - Added new widget test suites validating explicit `IgnoreWindowDrag` behavior, automatic scrollable drag bypasses, text input drag bypasses, and scroll propagation boundaries.
+  - Integrated `ScrollableDummyWidget` (a 100-item ListView.builder) into the example project control panel to visually demonstrate automatic scroll-chaining protection.
+
 ## 0.0.5
 
 * **Native Double-Tap Maximization**:

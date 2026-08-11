@@ -4,6 +4,7 @@ import 'package:mdi_view/mdi_view.dart';
 
 import 'dummy_widget.dart';
 import 'calculator_widget.dart';
+import 'scrollable_dummy_widget.dart';
 
 void main() {
   runApp(const MyApp());
@@ -88,6 +89,21 @@ class _MyHomePageState extends State<MyHomePage> {
     count++;
   }
 
+  void _addScrollableWindow() {
+    controller.addWindow(
+      parameter: ParameterWindow(
+        title: 'Scrollable List $count',
+        id: 'scroll-$count',
+        currentWidth: 350,
+        currentHeight: 450,
+        minWidth: 250,
+        minHeight: 300,
+      ),
+      child: (controller) => const ScrollableDummyWidget(),
+    );
+    count++;
+  }
+
   void _addCalculatorWindow() {
     controller.addWindow(
       parameter: ParameterWindow(
@@ -154,6 +170,18 @@ class _MyHomePageState extends State<MyHomePage> {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: _addScrollableWindow,
+                    icon: const Icon(Icons.format_list_bulleted, size: 18),
+                    label: const Text('Add Scrollable Document'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade800,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
                   const Text(
@@ -191,6 +219,9 @@ class _MyHomePageState extends State<MyHomePage> {
                               childBuilder: (param) {
                                 if (param.title.startsWith('Calculator')) {
                                   return const CalculatorWidget();
+                                }
+                                if (param.title.startsWith('Scrollable List')) {
+                                  return const ScrollableDummyWidget();
                                 }
                                 return const DummyWidget();
                               },

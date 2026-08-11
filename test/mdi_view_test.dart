@@ -551,6 +551,323 @@ void main() {
 
       controller.dispose();
     });
+
+    testWidgets('IgnoreWindowDrag prevents window dragging when dragging inside it', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+              style: MdiStyleConfiguration(
+                draggableBody: true,
+                showDefaultHeader: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => Column(
+          children: [
+            const IgnoreWindowDrag(
+              child: SizedBox(
+                key: Key('ignore-area'),
+                height: 100,
+                width: 300,
+                child: Text('Ignore Drag Area'),
+              ),
+            ),
+            Container(
+              key: const Key('drag-area'),
+              height: 100,
+              width: 300,
+              color: Colors.red,
+              child: const Text('Drag Area'),
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Double-check initial position
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Attempt to drag from 'ignore-area'
+      final TestGesture ignoreGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('ignore-area'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await ignoreGesture.moveBy(const Offset(50, 50));
+      await ignoreGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should NOT have moved
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Attempt to drag from 'drag-area' (outside IgnoreWindowDrag)
+      final TestGesture dragGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('drag-area'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await dragGesture.moveBy(const Offset(50, 50));
+      await dragGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should have moved
+      expect(w1.x, 150.0);
+      expect(w1.y, 150.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('Automatic scrollable drag bypass prevents window dragging over ListView', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+              style: MdiStyleConfiguration(
+                draggableBody: true,
+                showDefaultHeader: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                key: const Key('list-area'),
+                itemCount: 20,
+                itemBuilder: (context, index) => ListTile(
+                  title: Text('Item $index'),
+                ),
+              ),
+            ),
+            Container(
+              key: const Key('drag-area'),
+              height: 50,
+              width: 300,
+              color: Colors.red,
+              child: const Text('Non-scrollable Drag Area'),
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Double-check initial position
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Attempt to drag from list area (which is scrollable)
+      final TestGesture ignoreGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('list-area'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await ignoreGesture.moveBy(const Offset(50, 50));
+      await ignoreGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should NOT have moved
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Attempt to drag from 'drag-area' (outside scrollable area)
+      final TestGesture dragGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('drag-area'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await dragGesture.moveBy(const Offset(50, 50));
+      await dragGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should have moved
+      expect(w1.x, 150.0);
+      expect(w1.y, 150.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('Automatic drag bypass prevents window dragging over TextField', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+              style: MdiStyleConfiguration(
+                draggableBody: true,
+                showDefaultHeader: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => Column(
+          children: [
+            const SizedBox(
+              height: 100,
+              width: 300,
+              child: Material(
+                child: TextField(
+                  key: Key('textfield-area'),
+                  decoration: InputDecoration(hintText: 'Enter text here'),
+                ),
+              ),
+            ),
+            Container(
+              key: const Key('drag-area'),
+              height: 50,
+              width: 300,
+              color: Colors.red,
+              child: const Text('Non-scrollable Drag Area'),
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Double-check initial position
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Attempt to drag from TextField area
+      final TestGesture ignoreGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('textfield-area'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await ignoreGesture.moveBy(const Offset(50, 50));
+      await ignoreGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should NOT have moved
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Attempt to drag from 'drag-area' (outside TextField)
+      final TestGesture dragGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('drag-area'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await dragGesture.moveBy(const Offset(50, 50));
+      await dragGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should have moved
+      expect(w1.x, 150.0);
+      expect(w1.y, 150.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('Scroll events inside the window do not propagate to the parent MDI canvas', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+      // Make canvas larger than screen so vertical scrollbar is active and scrollable
+      controller.mdiSize = const Size(800, 1200);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+            ),
+          ),
+        ),
+      );
+
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => ListView.builder(
+          key: const Key('list-view-key'),
+          itemCount: 50,
+          itemBuilder: (context, index) => ListTile(
+            title: Text('Item $index'),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Ensure MDI vertical scroll offset is initially 0
+      expect(controller.verticalController.position.pixels, 0.0);
+
+      // Simulate a pointer scroll (mouse wheel scroll) inside the window's ListView
+      final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
+      pointer.hover(tester.getCenter(find.byKey(const Key('list-view-key'))));
+      await tester.sendEventToBinding(
+        pointer.scroll(const Offset(0.0, 50.0)),
+      );
+      await tester.pumpAndSettle();
+
+      // The parent MDI canvas scroll position should NOT have changed (should remain 0.0)
+      expect(controller.verticalController.position.pixels, 0.0);
+
+      controller.dispose();
+    });
   });
 
   group('Enterprise Features Unit Tests', () {

@@ -96,6 +96,21 @@ class ResizableWindowState extends State<ResizableWindow> {
       },
     );
 
+    final Widget childContent = NotificationListener<ScrollNotification>(
+      onNotification: (_) => true,
+      child: Listener(
+        onPointerSignal: (pointerSignal) {
+          if (pointerSignal is PointerScrollEvent) {
+            GestureBinding.instance.pointerSignalResolver.register(
+              pointerSignal,
+              (event) {},
+            );
+          }
+        },
+        child: nestedNavigator,
+      ),
+    );
+
     final Widget windowContent;
     if (style.showDefaultHeader) {
       windowContent = Column(
@@ -133,11 +148,11 @@ class ResizableWindowState extends State<ResizableWindow> {
             ),
           ),
           // Content Area
-          Expanded(child: nestedNavigator),
+          Expanded(child: childContent),
         ],
       );
     } else {
-      windowContent = nestedNavigator;
+      windowContent = childContent;
     }
 
     return ResizableWindowProvider(
@@ -429,3 +444,46 @@ class ResizableWindowProvider extends InheritedWidget {
   bool updateShouldNotify(ResizableWindowProvider oldWidget) =>
       oldWidget.controller != controller;
 }
+
+// ── IgnoreWindowDrag ──────────────────────────────────────────────────────────
+
+/// A widget that prevents window drag operations when a pointer gesture
+/// starts inside its bounds.
+///
+/// Use this to wrap interactive child widgets (like `InAppWebView`, scrollable views,
+/// or maps) that should consume pointer/drag events and prevent the parent MDI window
+/// from being dragged instead.
+class IgnoreWindowDrag extends StatefulWidget {
+  final Widget child;
+
+  const IgnoreWindowDrag({super.key, required this.child});
+
+  @override
+  State<IgnoreWindowDrag> createState() => _IgnoreWindowDragState();
+}
+
+class _IgnoreWindowDragState extends State<IgnoreWindowDrag> {
+  ResizeableWindowController? _controller;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newController = ResizableWindowProvider.of(context);
+    if (_controller != newController) {
+      _controller?.unregisterIgnoreDragContext(context);
+      _controller = newController;
+      _controller?.registerIgnoreDragContext(context);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.unregisterIgnoreDragContext(context);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
+  }
+}

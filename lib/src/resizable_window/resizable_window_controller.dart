@@ -96,6 +96,65 @@ class ResizeableWindowController extends ChangeNotifier {
   Offset? _panDragStart;
   Offset? _panPointerStart;
 
+  // Contexts that register to ignore dragging inside their bounds
+  final Set<BuildContext> _ignoreDragContexts = {};
+
+  void registerIgnoreDragContext(BuildContext context) {
+    _ignoreDragContexts.add(context);
+  }
+
+  void unregisterIgnoreDragContext(BuildContext context) {
+    _ignoreDragContexts.remove(context);
+  }
+
+  bool _shouldIgnoreDrag(Offset globalPosition) {
+    // 1. Check explicitly ignored contexts (IgnoreWindowDrag)
+    if (_ignoreDragContexts.isNotEmpty) {
+      for (final context in _ignoreDragContexts) {
+        if (!context.mounted) continue;
+        final renderBox = context.findRenderObject() as RenderBox?;
+        if (renderBox == null || !renderBox.hasSize) continue;
+        try {
+          final localPos = renderBox.globalToLocal(globalPosition);
+          final bounds = Rect.fromLTWH(0, 0, renderBox.size.width, renderBox.size.height);
+          if (bounds.contains(localPos)) {
+            return true;
+          }
+        } catch (_) {
+          // Safe-guard in case coordinate conversion fails
+        }
+      }
+    }
+
+    // 2. Perform automatic hit-testing for viewports, platform views (like InAppWebView), and editable fields
+    final windowContext = GlobalObjectKey(this).currentContext;
+    if (windowContext == null || !windowContext.mounted) return false;
+    final windowRenderBox = windowContext.findRenderObject() as RenderBox?;
+    if (windowRenderBox == null || !windowRenderBox.hasSize) return false;
+
+    try {
+      final localPos = windowRenderBox.globalToLocal(globalPosition);
+      final BoxHitTestResult hitTestResult = BoxHitTestResult();
+      windowRenderBox.hitTest(hitTestResult, position: localPos);
+
+      for (final entry in hitTestResult.path) {
+        final target = entry.target;
+        final typeStr = target.runtimeType.toString();
+        if (target is RenderAbstractViewport ||
+            typeStr.contains('Viewport') ||
+            typeStr.contains('PlatformView') ||
+            typeStr.contains('RenderEditable') ||
+            typeStr == '_RenderDecoration') {
+          return true;
+        }
+      }
+    } catch (_) {
+      // Safe-guard in case coordinate conversions or hit-testing throws
+    }
+
+    return false;
+  }
+
   // ── Constructor ───────────────────────────────────────────────────────────
 
   ResizeableWindowController({
@@ -190,7 +249,10 @@ class ResizeableWindowController extends ChangeNotifier {
 
   void bringToFront() => _onBringToFront?.call();
 
-  void startDrag(PointerDownEvent event) => _onStartDrag?.call(event);
+  void startDrag(PointerDownEvent event) {
+    if (_shouldIgnoreDrag(event.position)) return;
+    _onStartDrag?.call(event);
+  }
 
   void startResize(PointerDownEvent event, {EdgeSide? side, CornerSide? corner}) =>
       _onStartResize?.call(event, side: side, corner: corner);
@@ -319,6 +381,7 @@ class ResizeableWindowController extends ChangeNotifier {
         },
         onPanStart: (details) {
           if (isMaximized) return;
+          if (_shouldIgnoreDrag(details.globalPosition)) return;
           bringToFront();
           // Store drag origin so onPanUpdate can compute deltas.
           _panDragStart = Offset(x, y);
