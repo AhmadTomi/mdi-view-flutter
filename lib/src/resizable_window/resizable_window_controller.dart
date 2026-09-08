@@ -241,6 +241,13 @@ class ResizeableWindowController extends ChangeNotifier {
 
   Map<String, dynamic> get argument => Map.unmodifiable(_argument);
 
+  /// Translation offset applied during active dragging to achieve 120 FPS
+  /// GPU layer compositing without triggering continuous layout passes.
+  final ValueNotifier<Offset> dragOffsetNotifier = ValueNotifier<Offset>(Offset.zero);
+
+  double get visualX => x + dragOffsetNotifier.value.dx;
+  double get visualY => y + dragOffsetNotifier.value.dy;
+
   /// Snapshot of the current mutable state as an immutable [ParameterWindow].
   ParameterWindow get parameterWindow => _parameter.copyWith(
     x: x,
@@ -296,6 +303,7 @@ class ResizeableWindowController extends ChangeNotifier {
     _isDisposed = true;
     focusScopeNode.dispose();
     hoverNotifier.dispose();
+    dragOffsetNotifier.dispose();
     super.dispose();
   }
 
@@ -309,7 +317,10 @@ class ResizeableWindowController extends ChangeNotifier {
     }
   }
 
-  void bringToFront() => _onBringToFront?.call();
+  void bringToFront() {
+    requestFocus();
+    _onBringToFront?.call();
+  }
 
   void setHover(bool isHovering) {
     if (_isHovered == isHovering) return;
@@ -322,6 +333,7 @@ class ResizeableWindowController extends ChangeNotifier {
 
   void startDrag(PointerDownEvent event) {
     if (_shouldIgnoreDrag(event.position)) return;
+    requestFocus();
     _onStartDrag?.call(event);
   }
 
@@ -460,10 +472,12 @@ class ResizeableWindowController extends ChangeNotifier {
         onPanStart: (details) {
           if (isMaximized) return;
           if (_shouldIgnoreDrag(details.globalPosition)) return;
+          requestFocus();
           bringToFront();
           // Store drag origin so onPanUpdate can compute deltas.
           _panDragStart = Offset(x, y);
           _panPointerStart = details.globalPosition;
+          dragOffsetNotifier.value = Offset.zero;
         },
         onPanUpdate: (details) {
           if (isMaximized || _panDragStart == null) return;
@@ -475,10 +489,18 @@ class ResizeableWindowController extends ChangeNotifier {
         onPanEnd: (details) {
           _panDragStart = null;
           _panPointerStart = null;
+          dragOffsetNotifier.value = Offset.zero;
           if (!isMaximized) {
             snapWindowPosition();
             positionChangeAction();
           }
+          notifyListeners();
+        },
+        onPanCancel: () {
+          _panDragStart = null;
+          _panPointerStart = null;
+          dragOffsetNotifier.value = Offset.zero;
+          notifyListeners();
         },
         child: child,
       );

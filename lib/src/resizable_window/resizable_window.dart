@@ -198,15 +198,28 @@ class ResizableWindowState extends State<ResizableWindow> {
                 : KeyEventResult.ignored;
           },
           onFocusChange: (focused) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
+            void update() {
               if (mounted) {
                 _onControllerUpdate();
                 _controller.onFocusChange?.call(focused);
               }
-            });
+            }
+
+            if (WidgetsBinding.instance.schedulerPhase ==
+                SchedulerPhase.persistentCallbacks) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => update());
+            } else {
+              update();
+            }
           },
-          child: GestureDetector(
-            onTap: _controller.hasFocus ? null : _controller.requestFocus,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) {
+              if (!_controller.hasFocus) {
+                _controller.requestFocus();
+                _controller.bringToFront();
+              }
+            },
             child: ColoredBox(
               color: Colors.transparent,
               child: Padding(
@@ -214,42 +227,34 @@ class ResizableWindowState extends State<ResizableWindow> {
                 child: SizedBox(
                   width: snap(_controller.currentWidth) - 2 * snappedGap,
                   height: snap(_controller.currentHeight) - 2 * snappedGap,
-                  child: Stack(
-                    children: [
-                      // ── Window surface ──────────────────────────────────
-                      _WindowSurface(
-                        controller: _controller,
-                        style: style,
-                        radius: radius,
-                        content: style.draggableBody
-                            ? _controller.dragWidget(
-                                child: windowContentWithScroll,
-                                canDoubleClick: false,
-                                useGestureDetector: true,
-                              )
-                            : windowContentWithScroll,
-                      ),
+                  child: WindowResizeFrame(
+                    controller: _controller,
+                    enabled: !_controller.isMaximized,
+                    child: Stack(
+                      children: [
+                        // ── Window surface ──────────────────────────────────
+                        _WindowSurface(
+                          controller: _controller,
+                          style: style,
+                          radius: radius,
+                          content: style.draggableBody
+                              ? _controller.dragWidget(
+                                  child: windowContentWithScroll,
+                                  canDoubleClick: false,
+                                  useGestureDetector: true,
+                                )
+                              : windowContentWithScroll,
+                        ),
 
-                      // ── Unfocus overlay ─────────────────────────────────
-                      _UnfocusBlocker(
-                        color: style.unfocusBlockerColor,
-                        active: !_controller.hasFocus && !_controller.isHovered,
-                        radius: radius,
-                        controller: _controller,
-                      ),
-
-                      // ── Resize handles ──────────────────────────────────
-                      if (!_controller.isMaximized) ...[
-                        _EdgeHandle.right(_controller),
-                        _EdgeHandle.left(_controller),
-                        _EdgeHandle.top(_controller),
-                        _EdgeHandle.bottom(_controller),
-                        _CornerHandle.bottomRight(_controller),
-                        _CornerHandle.bottomLeft(_controller),
-                        _CornerHandle.topRight(_controller),
-                        _CornerHandle.topLeft(_controller),
+                        // ── Unfocus overlay ─────────────────────────────────
+                        _UnfocusBlocker(
+                          color: style.unfocusBlockerColor,
+                          active: !_controller.hasFocus && !_controller.isHovered,
+                          radius: radius,
+                          controller: _controller,
+                        ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -339,104 +344,11 @@ class _UnfocusBlocker extends StatelessWidget {
   }
 }
 
-// ── Edge resize handle ────────────────────────────────────────────────────────
+// ── Resize edge and corner enums ─────────────────────────────────────────────
 
 enum EdgeSide { left, right, top, bottom }
 
-class _EdgeHandle extends StatelessWidget {
-  final ResizeableWindowController controller;
-  final EdgeSide side;
-
-  const _EdgeHandle.right(this.controller) : side = EdgeSide.right;
-  const _EdgeHandle.left(this.controller) : side = EdgeSide.left;
-  const _EdgeHandle.top(this.controller) : side = EdgeSide.top;
-  const _EdgeHandle.bottom(this.controller) : side = EdgeSide.bottom;
-
-  bool get _isHorizontal => side == EdgeSide.left || side == EdgeSide.right;
-
-  @override
-  Widget build(BuildContext context) {
-    // Horizontal edges (left/right) need a full-height strip, so top and
-    // bottom are pinned to 0. Vertical edges (top/bottom) need a full-width
-    // strip, so left and right are pinned to 0. Without this, the
-    // unpinned axis collapses to the child's intrinsic size — which is 0,
-    // since the SizedBox below only declares a size on its own axis.
-    return Positioned(
-      left: side == EdgeSide.left ? 0 : (!_isHorizontal ? 0 : null),
-      right: side == EdgeSide.right ? 0 : (!_isHorizontal ? 0 : null),
-      top: side == EdgeSide.top ? 0 : (_isHorizontal ? 0 : null),
-      bottom: side == EdgeSide.bottom ? 0 : (_isHorizontal ? 0 : null),
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (event) {
-          if (event.kind == PointerDeviceKind.mouse) {
-            controller.startResize(event, side: side);
-          }
-        },
-        child: MouseRegion(
-          cursor: _isHorizontal
-              ? SystemMouseCursors.resizeLeftRight
-              : SystemMouseCursors.resizeUpDown,
-          opaque: true,
-          child: _isHorizontal
-              ? const SizedBox(width: 4)
-              : const SizedBox(height: 4),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Corner resize handle ──────────────────────────────────────────────────────
-
 enum CornerSide { topLeft, topRight, bottomLeft, bottomRight }
-
-class _CornerHandle extends StatelessWidget {
-  final ResizeableWindowController controller;
-  final CornerSide side;
-
-  const _CornerHandle.bottomRight(this.controller)
-    : side = CornerSide.bottomRight;
-  const _CornerHandle.bottomLeft(this.controller)
-    : side = CornerSide.bottomLeft;
-  const _CornerHandle.topRight(this.controller) : side = CornerSide.topRight;
-  const _CornerHandle.topLeft(this.controller) : side = CornerSide.topLeft;
-
-  MouseCursor get _cursor => switch (side) {
-    CornerSide.topLeft ||
-    CornerSide.bottomRight => SystemMouseCursors.resizeUpLeftDownRight,
-    CornerSide.topRight ||
-    CornerSide.bottomLeft => SystemMouseCursors.resizeUpRightDownLeft,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isLeft =
-        side == CornerSide.topLeft || side == CornerSide.bottomLeft;
-    final bool isTop =
-        side == CornerSide.topLeft || side == CornerSide.topRight;
-
-    return Positioned(
-      left: isLeft ? 0 : null,
-      right: isLeft ? null : 0,
-      top: isTop ? 0 : null,
-      bottom: isTop ? null : 0,
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (event) {
-          if (event.kind == PointerDeviceKind.mouse) {
-            controller.startResize(event, corner: side);
-          }
-        },
-        child: MouseRegion(
-          cursor: _cursor,
-          opaque: true,
-          child: const SizedBox.square(dimension: 12),
-        ),
-      ),
-    );
-  }
-}
 
 // ── InheritedWidget ───────────────────────────────────────────────────────────
 

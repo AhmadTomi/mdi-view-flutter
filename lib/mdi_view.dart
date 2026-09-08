@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'src/mdi_tab/mdi_tab.dart';
 
@@ -14,3 +15,4 @@ part 'src/mdi_manager/mdi_manager.dart';
 part 'src/mdi_manager/mdi_controller.dart';
 part 'src/resizable_window/resizable_window.dart';
 part 'src/resizable_window/resizable_window_controller.dart';
+part 'src/resizable_window/window_resize_frame.dart';

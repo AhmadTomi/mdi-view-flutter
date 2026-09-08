@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mdi_view/mdi_view.dart';
@@ -1472,7 +1473,7 @@ void main() {
         ),
       );
 
-      final w1 = controller.addWindow(
+      controller.addWindow(
         parameter: const ParameterWindow(title: 'W1', id: '1', x: 20, y: 20, currentWidth: 200, currentHeight: 200),
         child: (ctrl) => Container(
           key: const Key('reactive-container'),
@@ -1690,6 +1691,430 @@ void main() {
       expect(identical(reconciledW1, w1), true); // Verify instance identity is preserved!
       expect(reconciledW1!.x, 120.0);
       expect(reconciledW1.y, 170.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('Window dragging: updates coordinates smoothly with 1:1 hardware mouse alignment and device-pixel precision', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+        ),
+        child: (c) => Container(color: Colors.amber),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+      expect(w1.visualX, 100.0);
+      expect(w1.visualY, 100.0);
+
+      // Start drag gesture
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byWidget(w1.widget)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      // Move by 30, 40
+      await gesture.moveBy(const Offset(30, 40));
+      await tester.pump();
+
+      // During active drag: coordinates x and y update smoothly with 1:1 mouse tracking
+      expect(w1.x, 130.0);
+      expect(w1.y, 140.0);
+      expect(w1.visualX, 130.0);
+      expect(w1.visualY, 140.0);
+
+      // Move by another 20, 10
+      await gesture.moveBy(const Offset(20, 10));
+      await tester.pump();
+
+      expect(w1.x, 150.0);
+      expect(w1.y, 150.0);
+      expect(w1.visualX, 150.0);
+      expect(w1.visualY, 150.0);
+
+      // Finish drag
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(w1.x, 150.0);
+      expect(w1.y, 150.0);
+      expect(w1.visualX, 150.0);
+      expect(w1.visualY, 150.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('Custom RenderBox WindowResizeFrame: edge and corner handle hit testing and mouse cursors', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+        ),
+        child: (c) => Container(color: Colors.blue),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Find the WindowResizeFrame render box
+      final resizeFrameFinder = find.byType(WindowResizeFrame);
+      expect(resizeFrameFinder, findsOneWidget);
+      final RenderWindowResizeFrame renderBox =
+          tester.renderObject(resizeFrameFinder);
+      final double w = renderBox.size.width;
+      final double h = renderBox.size.height;
+
+      // Test corner hit-testing
+      final topLeftHit = BoxHitTestResult();
+      renderBox.hitTest(topLeftHit, position: const Offset(2, 2));
+      expect(renderBox.cursor, SystemMouseCursors.resizeUpLeftDownRight);
+
+      final topRightHit = BoxHitTestResult();
+      renderBox.hitTest(topRightHit, position: Offset(w - 2, 2));
+      expect(renderBox.cursor, SystemMouseCursors.resizeUpRightDownLeft);
+
+      final bottomLeftHit = BoxHitTestResult();
+      renderBox.hitTest(bottomLeftHit, position: Offset(2, h - 2));
+      expect(renderBox.cursor, SystemMouseCursors.resizeUpRightDownLeft);
+
+      final bottomRightHit = BoxHitTestResult();
+      renderBox.hitTest(bottomRightHit, position: Offset(w - 2, h - 2));
+      expect(renderBox.cursor, SystemMouseCursors.resizeUpLeftDownRight);
+
+      // Test edge hit-testing
+      final rightEdgeHit = BoxHitTestResult();
+      renderBox.hitTest(rightEdgeHit, position: Offset(w - 2, h / 2));
+      expect(renderBox.cursor, SystemMouseCursors.resizeLeftRight);
+
+      final bottomEdgeHit = BoxHitTestResult();
+      renderBox.hitTest(bottomEdgeHit, position: Offset(w / 2, h - 2));
+      expect(renderBox.cursor, SystemMouseCursors.resizeUpDown);
+
+      final leftEdgeHit = BoxHitTestResult();
+      renderBox.hitTest(leftEdgeHit, position: Offset(1, h / 2));
+      expect(renderBox.cursor, SystemMouseCursors.resizeLeftRight);
+
+      final topEdgeHit = BoxHitTestResult();
+      renderBox.hitTest(topEdgeHit, position: Offset(w / 2, 1));
+      expect(renderBox.cursor, SystemMouseCursors.resizeUpDown);
+
+      // Center (non-handle) hit-testing delegates to child and does not set resize cursor
+      final centerHit = BoxHitTestResult();
+      renderBox.hitTest(centerHit, position: Offset(w / 2, h / 2));
+      expect(renderBox.cursor, MouseCursor.defer);
+
+      controller.dispose();
+    });
+
+    testWidgets('Custom RenderBox WindowResizeFrame: dragging edge resizes window geometry', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (c) => Container(color: Colors.green),
+      );
+
+      await tester.pumpAndSettle();
+
+      final resizeFrameFinder = find.byType(WindowResizeFrame);
+      final windowTopRight = tester.getTopRight(resizeFrameFinder);
+
+      // Drag right edge (slightly inward from top right, e.g. at middle height of right edge)
+      final rightEdgePoint = Offset(windowTopRight.dx - 1, windowTopRight.dy + 100);
+
+      final resizeGesture = await tester.startGesture(
+        rightEdgePoint,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      // Drag outward by 50px
+      await resizeGesture.moveBy(const Offset(50, 0));
+      await tester.pumpAndSettle();
+
+      await resizeGesture.up();
+      await tester.pumpAndSettle();
+
+      // Window should now be wider (200 + 50 = 250)
+      expect(w1.currentWidth, 250.0);
+      expect(w1.currentHeight, 200.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager moves focus to unfocused window when dragging from its header', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 50,
+          y: 50,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (c) => Container(color: Colors.red),
+      );
+
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W2',
+          id: '2',
+          x: 300,
+          y: 50,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (c) => Container(color: Colors.blue),
+      );
+
+      await tester.pumpAndSettle();
+
+      // W2 should currently have focus
+      expect(controller.frontWindow, w2);
+      expect(w1.hasFocus, false);
+      expect(w2.hasFocus, true);
+
+      // Drag unfocused window W1 by its header title text
+      final w1TitleFinder = find.descendant(
+        of: find.byWidget(w1.widget),
+        matching: find.text('W1'),
+      );
+      expect(w1TitleFinder, findsOneWidget);
+
+      await tester.drag(w1TitleFinder, const Offset(40, 40), kind: PointerDeviceKind.mouse, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      // Focus must now belong to W1!
+      expect(controller.frontWindow, w1);
+      expect(w1.hasFocus, true);
+      expect(w2.hasFocus, false);
+      expect(w1.x, greaterThan(50.0));
+      expect(w1.y, greaterThan(50.0));
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager moves focus to unfocused window when dragging its body while hovered', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 50,
+          y: 50,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (c) => Container(color: Colors.red),
+      );
+
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W2',
+          id: '2',
+          x: 300,
+          y: 50,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (c) => Container(color: Colors.blue),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(controller.frontWindow, w2);
+      expect(w1.hasFocus, false);
+      expect(w2.hasFocus, true);
+
+      // Simulate mouse hovering over W1 body
+      final w1Center = tester.getCenter(find.byWidget(w1.widget));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      await tester.pump();
+
+      // Hover over W1
+      await gesture.moveTo(w1Center);
+      await tester.pumpAndSettle();
+
+      // Ensure W1 is hovered but not yet focused
+      expect(w1.isHovered, true);
+      expect(w1.hasFocus, false);
+
+      // Remove the hover test pointer before starting a fresh drag
+      await gesture.removePointer();
+      await tester.pump();
+
+      // Drag W1 body while unfocused
+      await tester.dragFrom(w1Center, const Offset(40, 40), kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+
+      // Focus must now belong to W1!
+      expect(controller.frontWindow, w1);
+      expect(w1.hasFocus, true);
+      expect(w2.hasFocus, false);
+      expect(w1.x, greaterThan(50.0));
+      expect(w1.y, greaterThan(50.0));
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiManager transfers focus immediately on pointer down when clicking an unfocused window', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 50,
+          y: 50,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (c) => Container(color: Colors.red),
+      );
+
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W2',
+          id: '2',
+          x: 300,
+          y: 50,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (c) => Container(color: Colors.blue),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(controller.frontWindow, w2);
+      expect(w1.hasFocus, false);
+      expect(w2.hasFocus, true);
+
+      // Press mouse button down on unfocused W1 without releasing (no tap up!)
+      final w1Center = tester.getCenter(find.byWidget(w1.widget));
+      final gesture = await tester.startGesture(w1Center, kind: PointerDeviceKind.mouse);
+      await tester.pump();
+
+      // Focus must have transferred immediately on pointer down without any delay!
+      expect(controller.frontWindow, w1);
+      expect(w1.hasFocus, true);
+      expect(w2.hasFocus, false);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
 
       controller.dispose();
     });

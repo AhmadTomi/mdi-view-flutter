@@ -11,15 +11,16 @@ A Flutter package that provides a Multiple Document Interface (MDI) experience, 
 ## Features
 
 *   **Multiple Windows:** Open and manage multiple windows simultaneously.
-*   **Performance-First Architecture:** Subtree rendering caching (via controller widget caching) completely eliminates layout thrashing and unnecessary chrome repaints when shifting window Z-order or layouts.
+*   **Performance-First Architecture:** Subtree rendering caching, custom `RenderBox` resize handles (`WindowResizeFrame`), and device-pixel snapping provide buttery-smooth 60/120 FPS dragging and resizing with zero unnecessary layout passes.
+*   **Instant, Zero-Delay Focus:** Window focus transitions activate synchronously on mouse-down (`onPointerDown`), eliminating gesture competition delays when selecting unfocused windows.
 *   **Seamless Draggable Body & Child Gesture Bypass:** Window bodies can be dragged from empty/background areas (`draggableBody: true`) while automatically bypassing interactive child widgets (Sliders, TextFields, ListViews, custom drag gestures, and pointer listeners).
+*   **Automatic Focus on Drag:** Dragging an unfocused window (by its header or draggable body) seamlessly focuses and brings the window to the front.
 *   **Workspace Scroll & Shift+Scroll Delegation:** Mouse wheel and trackpad scroll over empty space, Cards, Containers, or headers smoothly scrolls the parent MDI workspace. Holding `Shift` scrolls the workspace horizontally.
 *   **Workspace Persistence & Diff Reconciliation:** Export layout configurations to a JSON-compatible format. Restoring layout uses diff reconciliation to modify active window positions in-place, preserving input state, text selections, and scroll positions.
 *   **Magnetic Edge Snapping:** Dragging or resizing window borders close to canvas boundaries or sibling window edges (within 12px) snaps them flush automatically.
 *   **Cross-Platform Keyboard Accessibility:** Fully navigable using native desktop shortcuts with fallback alternatives for web builds where standard hotkeys are browser-reserved.
-*   **Resizable & Draggable:** Free-form dragging and boundary/corner resizing.
+*   **Resizable & Draggable:** 8-way border/corner resizing powered by a custom RenderBox, plus free-form dragging.
 *   **Maximizable:** Toggle maximizing windows to fill the MDI canvas.
-*   **Focus Management:** Sophisticated Z-order focus promoting (click-to-focus and tab strip navigation).
 *   **Taskbar/Tab Integration:** Horizontal reorderable tabs showing open documents.
 
 ## Installation
@@ -28,7 +29,7 @@ Add `mdi_view` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  mdi_view: ^0.1.0
+  mdi_view: ^0.0.9
 ```
 
 Run `flutter pub get` to install.

@@ -1,3 +1,18 @@
+## 0.0.9
+
+* **Custom RenderBox Resize Handles (`WindowResizeFrame`)**:
+  - Replaced 32 separate nested widgets per window (8-way border/corner Positioned, MouseRegion, and GestureDetector widgets) with a single, highly-optimized custom `RenderBox` (`RenderWindowResizeFrame`).
+  - Implemented 8-way border and corner hit-testing, dynamic desktop mouse cursor mapping (`MouseTrackerAnnotation`), and pointer resize dispatch directly in the render pipeline with zero widget-tree overhead.
+* **Instant, Zero-Delay Click-to-Focus**:
+  - Eliminated the click-to-focus delay when clicking unfocused windows by replacing `GestureDetector(onTap: ...)` (which waited for mouse release and gesture arena resolution) with a raw, translucent `Listener(onPointerDown: ...)`. Focus transfers instantaneously on the initial mouse-down.
+  - Optimized focus change notifications to execute synchronously, eliminating unnecessary post-frame delay cycles.
+* **Smooth Window Dragging & Frame-Rate Optimization**:
+  - Ensured 1:1 hardware mouse alignment and strict device-pixel snapping (`MediaQuery.devicePixelRatioOf(context)`) during window drag movements, completely eliminating subpixel blur, coordinate oscillation, and frame stutter.
+  - Cached window content behind a GPU `RepaintBoundary` so child widgets are never repainted during drag.
+  - Optimized `MdiController.bringToFront` to check if a window is already at the front before re-ordering the Z-order, preventing redundant canvas rebuilds and viewport scroll jumps during drag start.
+* **Unfocused Window Drag-to-Focus**:
+  - Dragging an unfocused window (either by its title bar header or by its body with `draggableBody: true`) automatically moves focus to the dragged window on pointer down.
+
 ## 0.0.8
 
 * **Interactive Child Controls & Window Drag Bypass**:

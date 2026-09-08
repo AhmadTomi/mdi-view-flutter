@@ -272,7 +272,7 @@ class MdiController extends ChangeNotifier {
         _onWindowFocusChanged(focused, ctrl);
         if (focused) tabMenuController.notifyListeners();
       },
-      onPositionChange: (_, __) {
+      onPositionChange: (_, _) {
         _debouncer.run(() {
           final changed = _recalculateMdiSize();
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -283,7 +283,7 @@ class MdiController extends ChangeNotifier {
         });
       },
       onArgumentUpdate: (_) => _emitWindowChange(ctrl.tag),
-      onBringToFront: () => bringToFront(ctrl.tag),
+      onBringToFront: () => bringToFront(ctrl.tag, focus: true),
       onStartDrag: (event) => startDrag(ctrl, event),
       onStartResize: (event, {side, corner}) => startResize(ctrl, event, side: side, corner: corner),
       onHoverChange: (isHovering) => setWindowHover(ctrl.tag, isHovering),
@@ -391,7 +391,7 @@ class MdiController extends ChangeNotifier {
             _onWindowFocusChanged(focused, ctrl);
             if (focused) tabMenuController.notifyListeners();
           },
-          onPositionChange: (_, __) {
+          onPositionChange: (_, _) {
             _debouncer.run(() {
               final changed = _recalculateMdiSize();
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -402,6 +402,9 @@ class MdiController extends ChangeNotifier {
             });
           },
           onArgumentUpdate: (_) => _emitWindowChange(ctrl.tag),
+          onBringToFront: () => bringToFront(ctrl.tag, focus: true),
+          onStartDrag: (event) => startDrag(ctrl, event),
+          onStartResize: (event, {side, corner}) => startResize(ctrl, event, side: side, corner: corner),
           onHoverChange: (isHovering) => setWindowHover(ctrl.tag, isHovering),
           onWorkspacePointerScroll: handleWorkspacePointerScroll,
         );
@@ -437,9 +440,16 @@ class MdiController extends ChangeNotifier {
   /// requesting focus.
   void bringToFront(String tag, {bool maximize = false, bool focus = false}) {
     if (!_windows.containsKey(tag)) return;
-    if (_windows.keys.last == tag && !maximize && !focus) return;
+    final ctrl = _windows[tag]!;
+    final alreadyFront = _windows.keys.last == tag;
 
-    final ctrl = _windows.remove(tag)!;
+    if (alreadyFront) {
+      if (maximize) ctrl.toggleMaximize(screenSize, true);
+      if (focus) ctrl.requestFocus();
+      return;
+    }
+
+    _windows.remove(tag);
     _windows[tag] = ctrl;
 
     // Only force-maximize when explicitly requested.  Never force-unmaximize
@@ -685,6 +695,7 @@ class MdiController extends ChangeNotifier {
     _draggedWindow = window;
     _dragPointerStart = event.position;
     _dragWindowStart = Offset(window.x, window.y);
+    window.dragOffsetNotifier.value = Offset.zero;
     bringToFront(window.tag, focus: true);
   }
 
@@ -778,6 +789,7 @@ class MdiController extends ChangeNotifier {
   void onPointerUp(PointerUpEvent event) {
     if (_draggedWindow != null) {
       final ctrl = _draggedWindow!;
+      ctrl.dragOffsetNotifier.value = Offset.zero;
       _draggedWindow = null;
       _dragPointerStart = null;
       _dragWindowStart = null;
