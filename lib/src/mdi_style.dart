@@ -66,6 +66,7 @@ class MdiStyleConfiguration {
   final double defaultHeaderHeight;
   final bool showDefaultHeader;
   final bool draggableBody;
+  final bool Function(HitTestTarget target)? shouldIgnoreDragTarget;
 
   // ── Factory defaults ──────────────────────────────────────────────────────
 
@@ -95,6 +96,7 @@ class MdiStyleConfiguration {
     required this.defaultHeaderHeight,
     required this.showDefaultHeader,
     required this.draggableBody,
+    this.shouldIgnoreDragTarget,
   });
 
   factory MdiStyleConfiguration({
@@ -120,6 +122,7 @@ class MdiStyleConfiguration {
     double defaultHeaderHeight = 30.0,
     bool showDefaultHeader = true,
     bool draggableBody = true,
+    bool Function(HitTestTarget target)? shouldIgnoreDragTarget,
   }) {
     return MdiStyleConfiguration._raw(
       gap: gap,
@@ -145,6 +148,7 @@ class MdiStyleConfiguration {
       defaultHeaderHeight: defaultHeaderHeight,
       showDefaultHeader: showDefaultHeader,
       draggableBody: draggableBody,
+      shouldIgnoreDragTarget: shouldIgnoreDragTarget,
     );
   }
 
@@ -173,6 +177,7 @@ class MdiStyleConfiguration {
     double? defaultHeaderHeight,
     bool? showDefaultHeader,
     bool? draggableBody,
+    bool Function(HitTestTarget target)? shouldIgnoreDragTarget,
   }) =>
       MdiStyleConfiguration._raw(
         gap: gap ?? this.gap,
@@ -202,6 +207,7 @@ class MdiStyleConfiguration {
         defaultHeaderHeight: defaultHeaderHeight ?? this.defaultHeaderHeight,
         showDefaultHeader: showDefaultHeader ?? this.showDefaultHeader,
         draggableBody: draggableBody ?? this.draggableBody,
+        shouldIgnoreDragTarget: shouldIgnoreDragTarget ?? this.shouldIgnoreDragTarget,
       );
 
   // ── Equality / hashing ────────────────────────────────────────────────────
@@ -231,7 +237,8 @@ class MdiStyleConfiguration {
         defaultHeaderTextColor == other.defaultHeaderTextColor &&
         defaultHeaderHeight == other.defaultHeaderHeight &&
         showDefaultHeader == other.showDefaultHeader &&
-        draggableBody == other.draggableBody;
+        draggableBody == other.draggableBody &&
+        shouldIgnoreDragTarget == other.shouldIgnoreDragTarget;
   }
 
   @override
@@ -258,5 +265,6 @@ class MdiStyleConfiguration {
     defaultHeaderHeight,
     showDefaultHeader,
     draggableBody,
+    shouldIgnoreDragTarget,
   ]);
 }

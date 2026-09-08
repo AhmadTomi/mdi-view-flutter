@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mdi_view/mdi_view.dart';
 
@@ -813,6 +814,327 @@ void main() {
       controller.dispose();
     });
 
+    testWidgets('Automatic drag bypass prevents window dragging over Slider', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      double sliderValue = 20.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+              style: MdiStyleConfiguration(
+                draggableBody: true,
+                showDefaultHeader: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'Slider Window',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => StatefulBuilder(
+          builder: (context, setState) => Column(
+            children: [
+              SizedBox(
+                height: 100,
+                width: 300,
+                child: Material(
+                  child: Slider(
+                    key: const Key('slider-key'),
+                    value: sliderValue,
+                    min: 0,
+                    max: 100,
+                    onChanged: (val) {
+                      setState(() {
+                        sliderValue = val;
+                      });
+                    },
+                  ),
+                ),
+              ),
+              Container(
+                key: const Key('empty-drag-area'),
+                height: 50,
+                width: 300,
+                color: Colors.blue,
+                child: const Text('Draggable background'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Double-check initial position
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Attempt to drag from Slider area
+      final TestGesture sliderGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('slider-key'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await sliderGesture.moveBy(const Offset(50, 0));
+      await sliderGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should NOT have moved, and slider value should have updated
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+      expect(sliderValue, isNot(20.0));
+
+      // Attempt to drag from 'empty-drag-area' (outside Slider)
+      final TestGesture dragGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('empty-drag-area'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await dragGesture.moveBy(const Offset(50, 50));
+      await dragGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should have moved
+      expect(w1.x, 150.0);
+      expect(w1.y, 150.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('Automatic drag bypass prevents window dragging over custom horizontal drag handler', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+              style: MdiStyleConfiguration(
+                draggableBody: true,
+                showDefaultHeader: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'Custom Gesture Window',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => Column(
+          children: [
+            GestureDetector(
+              key: const Key('custom-drag-gesture'),
+              onHorizontalDragUpdate: (details) {},
+              child: Container(
+                height: 80,
+                width: 300,
+                color: Colors.green,
+                child: const Text('Custom Drag Area'),
+              ),
+            ),
+            Container(
+              key: const Key('empty-drag-area'),
+              height: 50,
+              width: 300,
+              color: Colors.blue,
+              child: const Text('Draggable background'),
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Initial position
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Attempt to drag from custom drag gesture area
+      final TestGesture gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('custom-drag-gesture'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(const Offset(40, 40));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should NOT have moved
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Drag from empty drag area
+      final TestGesture bgGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('empty-drag-area'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await bgGesture.moveBy(const Offset(50, 50));
+      await bgGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should have moved
+      expect(w1.x, 150.0);
+      expect(w1.y, 150.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('Automatic drag bypass prevents window dragging over RenderPointerListener with onPointerMove', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+              style: MdiStyleConfiguration(
+                draggableBody: true,
+                showDefaultHeader: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'Pointer Listener Window',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => Column(
+          children: [
+            Listener(
+              key: const Key('custom-pointer-listener'),
+              onPointerMove: (event) {},
+              child: Container(
+                height: 80,
+                width: 300,
+                color: Colors.amber,
+                child: const Text('Pointer Move Area'),
+              ),
+            ),
+            Container(
+              key: const Key('empty-drag-area'),
+              height: 50,
+              width: 300,
+              color: Colors.blue,
+              child: const Text('Draggable background'),
+            ),
+          ],
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Initial position
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Attempt to drag from pointer listener area
+      final TestGesture gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('custom-pointer-listener'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(const Offset(40, 40));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should NOT have moved
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      controller.dispose();
+    });
+
+    testWidgets('shouldIgnoreDragTarget predicate in MdiStyleConfiguration is respected', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+              style: MdiStyleConfiguration(
+                draggableBody: true,
+                showDefaultHeader: true,
+                shouldIgnoreDragTarget: (target) =>
+                    target.runtimeType.toString() == 'RenderCustomCardBox',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'Custom Predicate Window',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => Container(
+          key: const Key('empty-drag-area'),
+          height: 300,
+          width: 300,
+          color: Colors.blue,
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Drag from empty drag area (not matching predicate)
+      final TestGesture bgGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('empty-drag-area'))),
+        kind: PointerDeviceKind.mouse,
+      );
+      await bgGesture.moveBy(const Offset(50, 50));
+      await bgGesture.up();
+      await tester.pumpAndSettle();
+
+      // The window should have moved
+      expect(w1.x, 150.0);
+      expect(w1.y, 150.0);
+
+      controller.dispose();
+    });
+
     testWidgets('Scroll events inside the window do not propagate to the parent MDI canvas', (
       WidgetTester tester,
     ) async {
@@ -821,6 +1143,8 @@ void main() {
       controller.screenSize = const Size(800, 600);
       // Make canvas larger than screen so vertical scrollbar is active and scrollable
       controller.mdiSize = const Size(800, 1200);
+
+      final scrollController = ScrollController();
 
       await tester.pumpWidget(
         MaterialApp(
@@ -843,6 +1167,7 @@ void main() {
         ),
         child: (_) => ListView.builder(
           key: const Key('list-view-key'),
+          controller: scrollController,
           itemCount: 50,
           itemBuilder: (context, index) => ListTile(
             title: Text('Item $index'),
@@ -850,20 +1175,155 @@ void main() {
         ),
       );
 
+      // Focus the window to disable the unfocus blocker overlay
+      controller.bringToFront('1', focus: true);
       await tester.pumpAndSettle();
 
       // Ensure MDI vertical scroll offset is initially 0
       expect(controller.verticalController.position.pixels, 0.0);
+      expect(scrollController.offset, 0.0);
 
       // Simulate a pointer scroll (mouse wheel scroll) inside the window's ListView
+      final Offset center = tester.getCenter(find.byKey(const Key('list-view-key')));
       final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
-      pointer.hover(tester.getCenter(find.byKey(const Key('list-view-key'))));
+      pointer.hover(center);
+      
       await tester.sendEventToBinding(
         pointer.scroll(const Offset(0.0, 50.0)),
       );
       await tester.pumpAndSettle();
 
       // The parent MDI canvas scroll position should NOT have changed (should remain 0.0)
+      expect(controller.verticalController.position.pixels, 0.0);
+
+      // Verify that the ListView itself scrolled
+      expect(scrollController.offset, 50.0);
+
+      scrollController.dispose();
+      controller.dispose();
+    });
+
+    testWidgets('Scroll events over empty space or non-scrollable widgets inside the window scroll the parent MDI canvas', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+      // Make canvas larger than screen so vertical scrollbar is active and scrollable
+      controller.mdiSize = const Size(800, 1200);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+            ),
+          ),
+        ),
+      );
+
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'Non-Scrollable Window',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 300,
+          currentHeight: 300,
+        ),
+        child: (_) => Column(
+          children: [
+            Container(
+              key: const Key('card-key'),
+              height: 150,
+              width: 300,
+              color: Colors.blue,
+              child: const Text('Non-scrollable card container'),
+            ),
+            Container(
+              key: const Key('empty-space-key'),
+              height: 100,
+              width: 300,
+              color: Colors.grey,
+            ),
+          ],
+        ),
+      );
+
+      // Add a window positioned further down and right to expand canvas beyond screen size
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W2',
+          id: '2',
+          x: 1000,
+          y: 800,
+          currentWidth: 200,
+          currentHeight: 200,
+        ),
+        child: (_) => Container(),
+      );
+
+      await tester.pumpAndSettle();
+      controller.verticalController.jumpTo(0.0);
+      controller.horizontalController.jumpTo(0.0);
+      await tester.pump();
+
+      // Ensure MDI vertical and horizontal scroll offset is initially 0
+      expect(controller.verticalController.position.pixels, 0.0);
+      expect(controller.horizontalController.position.pixels, 0.0);
+
+      // Simulate a pointer scroll inside the non-scrollable card container
+      final Offset cardCenter = tester.getCenter(find.byKey(const Key('card-key')));
+      final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
+      pointer.hover(cardCenter);
+
+      await tester.sendEventToBinding(
+        pointer.scroll(const Offset(0.0, 50.0)),
+      );
+      await tester.pumpAndSettle();
+
+      // The parent MDI canvas scroll position SHOULD have scrolled by 50.0
+      expect(controller.verticalController.position.pixels, 50.0);
+
+      // Simulate a pointer scroll over the empty space
+      final Offset emptyCenter = tester.getCenter(find.byKey(const Key('empty-space-key')));
+      pointer.hover(emptyCenter);
+
+      await tester.sendEventToBinding(
+        pointer.scroll(const Offset(0.0, 30.0)),
+      );
+      await tester.pumpAndSettle();
+
+      // The parent MDI canvas scroll position SHOULD now be 80.0
+      expect(controller.verticalController.position.pixels, 80.0);
+
+      // Simulate a pointer scroll over the default window header (title bar at x=150, y=115)
+      pointer.hover(const Offset(150, 115));
+      await tester.sendEventToBinding(
+        pointer.scroll(const Offset(0.0, 20.0)),
+      );
+      await tester.pumpAndSettle();
+
+      // The parent MDI canvas scroll position SHOULD now be 100.0
+      expect(controller.verticalController.position.pixels, 100.0);
+
+      // Test Shift + scroll triggers horizontal scrolling
+      controller.verticalController.jumpTo(0.0);
+      controller.horizontalController.jumpTo(0.0);
+      await tester.pump();
+      expect(controller.verticalController.position.pixels, 0.0);
+      expect(controller.horizontalController.position.pixels, 0.0);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      pointer.hover(cardCenter);
+      await tester.sendEventToBinding(
+        pointer.scroll(const Offset(0.0, 45.0)),
+      );
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+
+      // Horizontal should have scrolled by 45.0, vertical remains 0.0
+      expect(controller.horizontalController.position.pixels, 45.0);
       expect(controller.verticalController.position.pixels, 0.0);
 
       controller.dispose();
@@ -921,6 +1381,173 @@ void main() {
 
       // Should not be hovering anymore
       expect(controller.isHoveringAnyWindow, isFalse);
+
+      controller.dispose();
+    });
+
+    testWidgets('Hovering over an unfocused window makes _UnfocusBlocker disappear and allows immediate child button click', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      int clickCount = 0;
+      bool? onHoverCallbackValue;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W1', id: '1', x: 20, y: 20, currentWidth: 200, currentHeight: 200),
+        child: (c) => ElevatedButton(
+          onPressed: () => clickCount++,
+          child: const Text('Hover Button 1'),
+        ),
+      );
+
+      w1.onHover = (isHovered) {
+        onHoverCallbackValue = isHovered;
+      };
+
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W2', id: '2', x: 250, y: 20, currentWidth: 200, currentHeight: 200),
+        child: (c) => Container(),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Initial checks: W2 has focus, W1 is unfocused and not hovered
+      expect(controller.frontWindow, w2);
+      expect(w1.hasFocus, false);
+      expect(w1.isHovered, false);
+      expect(w1.hoverNotifier.value, false);
+
+      // Hover over W1 with a mouse pointer
+      final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
+      final w1ButtonCenter = tester.getCenter(find.text('Hover Button 1'));
+      await tester.sendEventToBinding(pointer.hover(w1ButtonCenter));
+      await tester.pumpAndSettle();
+
+      // Verify W1 hover state updated
+      expect(w1.isHovered, true);
+      expect(w1.hoverNotifier.value, true);
+      expect(onHoverCallbackValue, true);
+
+      // Click button while hovering — since _UnfocusBlocker is gone, click must hit button immediately!
+      await tester.sendEventToBinding(pointer.down(w1ButtonCenter));
+      await tester.sendEventToBinding(pointer.up());
+      await tester.pumpAndSettle();
+
+      expect(clickCount, 1);
+
+      // Hover away from W1
+      await tester.sendEventToBinding(pointer.hover(const Offset(500, 500)));
+      await tester.pumpAndSettle();
+
+      expect(w1.isHovered, false);
+      expect(w1.hoverNotifier.value, false);
+      expect(onHoverCallbackValue, false);
+
+      controller.dispose();
+    });
+
+    testWidgets('Child widget builder reactively updates when hover state changes', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W1', id: '1', x: 20, y: 20, currentWidth: 200, currentHeight: 200),
+        child: (ctrl) => Container(
+          key: const Key('reactive-container'),
+          child: Text(ctrl.isHovered ? 'Child is Hovered' : 'Child is Idle'),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Child is Idle'), findsOneWidget);
+      expect(find.text('Child is Hovered'), findsNothing);
+
+      // Hover over W1
+      final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
+      final w1Center = tester.getCenter(find.byKey(const Key('reactive-container')));
+      await tester.sendEventToBinding(pointer.hover(w1Center));
+      await tester.pumpAndSettle();
+
+      // Child builder should automatically rebuild with 'Child is Hovered'
+      expect(find.text('Child is Hovered'), findsOneWidget);
+      expect(find.text('Child is Idle'), findsNothing);
+
+      // Hover outside
+      await tester.sendEventToBinding(pointer.hover(const Offset(500, 500)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Child is Idle'), findsOneWidget);
+      expect(find.text('Child is Hovered'), findsNothing);
+
+      controller.dispose();
+    });
+
+    testWidgets('Child widget can use hoverNotifier ValueListenable directly', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(controller: controller),
+          ),
+        ),
+      );
+
+      controller.addWindow(
+        parameter: const ParameterWindow(title: 'W1', id: '1', x: 20, y: 20, currentWidth: 200, currentHeight: 200),
+        child: (ctrl) => ValueListenableBuilder<bool>(
+          valueListenable: ctrl.hoverNotifier,
+          builder: (context, isHovered, _) {
+            return Text(
+              isHovered ? 'Notifier Hovered' : 'Notifier Idle',
+              key: const Key('notifier-text'),
+            );
+          },
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Notifier Idle'), findsOneWidget);
+
+      final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
+      final w1Center = tester.getCenter(find.byKey(const Key('notifier-text')));
+      await tester.sendEventToBinding(pointer.hover(w1Center));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Notifier Hovered'), findsOneWidget);
+
+      await tester.sendEventToBinding(pointer.hover(const Offset(500, 500)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Notifier Idle'), findsOneWidget);
 
       controller.dispose();
     });

@@ -85,6 +85,15 @@ class ResizeableWindowController extends ChangeNotifier {
   void Function(PointerDownEvent event)? _onStartDrag;
   void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? _onStartResize;
   void Function(bool isHovering)? _onHoverChange;
+  void Function(PointerScrollEvent event)? _onWorkspacePointerScroll;
+
+  void Function(PointerScrollEvent event)? get onWorkspacePointerScroll =>
+      _onWorkspacePointerScroll;
+
+  // ── Hover state ───────────────────────────────────────────────────────────
+
+  bool _isHovered = false;
+  final ValueNotifier<bool> hoverNotifier = ValueNotifier<bool>(false);
 
   // ── Private ───────────────────────────────────────────────────────────────
 
@@ -127,11 +136,18 @@ class ResizeableWindowController extends ChangeNotifier {
       }
     }
 
-    // 2. Perform automatic hit-testing for viewports, platform views (like InAppWebView), and editable fields
+    // 2. Perform automatic hit-testing for viewports, platform views (like InAppWebView), editable fields, and interactive controls
     final windowContext = GlobalObjectKey(this).currentContext;
     if (windowContext == null || !windowContext.mounted) return false;
     final windowRenderBox = windowContext.findRenderObject() as RenderBox?;
     if (windowRenderBox == null || !windowRenderBox.hasSize) return false;
+
+    MdiStyleConfiguration? style;
+    try {
+      style = MdiStyleProvider.of(windowContext);
+    } catch (_) {
+      // Safe-guard in case context lookup fails
+    }
 
     try {
       final localPos = windowRenderBox.globalToLocal(globalPosition);
@@ -140,13 +156,43 @@ class ResizeableWindowController extends ChangeNotifier {
 
       for (final entry in hitTestResult.path) {
         final target = entry.target;
+
+        // Custom style predicate override
+        if (style?.shouldIgnoreDragTarget?.call(target) == true) {
+          return true;
+        }
+
         final typeStr = target.runtimeType.toString();
+
+        // 2a. Viewports, platform views, editable fields, and standard/custom sliders & controls by type name
         if (target is RenderAbstractViewport ||
             typeStr.contains('Viewport') ||
             typeStr.contains('PlatformView') ||
             typeStr.contains('RenderEditable') ||
-            typeStr == '_RenderDecoration') {
+            typeStr == '_RenderDecoration' ||
+            typeStr.contains('Slider') ||
+            typeStr.contains('RangeSlider') ||
+            typeStr.contains('Thumb') ||
+            typeStr.contains('Track') ||
+            typeStr.contains('Scrollbar') ||
+            typeStr.contains('Knob')) {
           return true;
+        }
+
+        // 2b. Semantic gesture handlers with active horizontal/vertical drag updates
+        if (target is RenderSemanticsGestureHandler) {
+          if (target.onHorizontalDragUpdate != null ||
+              target.onVerticalDragUpdate != null) {
+            return true;
+          }
+        }
+
+        // 2c. Pointer listeners with pointer movement tracking (excluding window itself)
+        if (target is RenderPointerListener && target != windowRenderBox) {
+          if (target.onPointerMove != null ||
+              target.onPointerPanZoomUpdate != null) {
+            return true;
+          }
         }
       }
     } catch (_) {
@@ -181,6 +227,8 @@ class ResizeableWindowController extends ChangeNotifier {
   
   bool get isDisposed => _isDisposed;
   bool get hasFocus => focusScopeNode.hasFocus;
+  bool get isHovered => _isHovered;
+  bool get isHovering => _isHovered;
 
   String get tag => _parameter.tag;
   String get title => _parameter.title;
@@ -205,6 +253,9 @@ class ResizeableWindowController extends ChangeNotifier {
   /// Optional key-event handler installed by the content widget.
   bool Function(KeyEvent event)? onKeyEvent;
 
+  /// Optional hover-change handler installed by the content widget.
+  void Function(bool isHovered)? onHover;
+
   /// Callback that returns a list of other active windows' coordinates for snapping.
   List<Rect> Function()? getOtherWindowRects;
 
@@ -220,6 +271,7 @@ class ResizeableWindowController extends ChangeNotifier {
     void Function(PointerDownEvent event)? onStartDrag,
     void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? onStartResize,
     void Function(bool isHovering)? onHoverChange,
+    void Function(PointerScrollEvent event)? onWorkspacePointerScroll,
   }) {
     this.onFocusChange = onFocusChange;
     _onClose = onClose;
@@ -230,13 +282,20 @@ class ResizeableWindowController extends ChangeNotifier {
     _onStartDrag = onStartDrag;
     _onStartResize = onStartResize;
     _onHoverChange = onHoverChange;
+    _onWorkspacePointerScroll = onWorkspacePointerScroll;
   }
+
+  /// Evaluates whether a pointer event at [globalPosition] should bypass window
+  /// dragging / workspace scrolling because it is over an interactive child widget
+  /// (e.g. TextField, ListView, Slider, custom gesture handlers).
+  bool shouldIgnoreDrag(Offset globalPosition) => _shouldIgnoreDrag(globalPosition);
 
   @override
   void dispose() {
     assert(!_isDisposed, 'dispose() called twice on $runtimeType($tag)');
     _isDisposed = true;
     focusScopeNode.dispose();
+    hoverNotifier.dispose();
     super.dispose();
   }
 
@@ -252,7 +311,14 @@ class ResizeableWindowController extends ChangeNotifier {
 
   void bringToFront() => _onBringToFront?.call();
 
-  void setHover(bool isHovering) => _onHoverChange?.call(isHovering);
+  void setHover(bool isHovering) {
+    if (_isHovered == isHovering) return;
+    _isHovered = isHovering;
+    hoverNotifier.value = isHovering;
+    notifyListeners();
+    onHover?.call(isHovering);
+    _onHoverChange?.call(isHovering);
+  }
 
   void startDrag(PointerDownEvent event) {
     if (_shouldIgnoreDrag(event.position)) return;
@@ -377,13 +443,20 @@ class ResizeableWindowController extends ChangeNotifier {
   /// [onDoubleTap] and pan callbacks so the gesture arena properly
   /// distinguishes double-taps from drags — matching the pattern used
   /// by [_TapTarget] in `mdi_tab_widget.dart`.
-  Widget dragWidget({required Widget child, bool canDoubleClick = true}) {
-    if (canDoubleClick) {
+  Widget dragWidget({
+    required Widget child,
+    bool canDoubleClick = true,
+    bool useGestureDetector = false,
+  }) {
+    if (canDoubleClick || useGestureDetector) {
       return GestureDetector(
+        excludeFromSemantics: true,
         behavior: HitTestBehavior.translucent,
-        onDoubleTap: () {
-          _toggleMaximize?.call((s) => toggleMaximize(s));
-        },
+        onDoubleTap: canDoubleClick
+            ? () {
+                _toggleMaximize?.call((s) => toggleMaximize(s));
+              }
+            : null,
         onPanStart: (details) {
           if (isMaximized) return;
           if (_shouldIgnoreDrag(details.globalPosition)) return;

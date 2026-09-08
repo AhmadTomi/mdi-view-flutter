@@ -1,8 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:mdi_view/mdi_view.dart';
 
-class ScrollableDummyWidget extends StatelessWidget {
+class ScrollableDummyWidget extends StatefulWidget {
   const ScrollableDummyWidget({super.key});
+
+  @override
+  State<ScrollableDummyWidget> createState() => _ScrollableDummyWidgetState();
+}
+
+class _ScrollableDummyWidgetState extends State<ScrollableDummyWidget> {
+
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    _scrollController = ScrollController();
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -36,34 +57,40 @@ class ScrollableDummyWidget extends StatelessWidget {
               ],
             ),
           ),
-          
+    
           // Scrollable List
           Expanded(
-            child: ListView.builder(
-              itemCount: 100,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemBuilder: (context, index) {
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.blue.shade100,
-                    foregroundColor: Colors.blue.shade900,
-                    child: Text('${index + 1}'),
-                  ),
-                  title: Text('Scrollable Item ${index + 1}'),
-                  subtitle: Text('Details for item description number ${index + 1}'),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Tapped Item ${index + 1}'),
-                        duration: const Duration(milliseconds: 500),
+            child: Scrollbar(
+              controller: _scrollController,
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: 100,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemBuilder: (context, index) {
+                  return Material(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.blue.shade100,
+                        foregroundColor: Colors.blue.shade900,
+                        child: Text('${index + 1}'),
                       ),
-                    );
-                  },
-                );
-              },
+                      title: Text('Scrollable Item ${index + 1}'),
+                      subtitle: Text('Details for item description number ${index + 1}'),
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Tapped Item ${index + 1}'),
+                            duration: const Duration(milliseconds: 500),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
           ),
-
+    
           // Actions at bottom
           Padding(
             padding: const EdgeInsets.all(8.0),

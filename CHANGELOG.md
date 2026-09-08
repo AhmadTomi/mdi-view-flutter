@@ -1,3 +1,23 @@
+## 0.0.8
+
+* **Interactive Child Controls & Window Drag Bypass**:
+  - Enhanced automatic hit-testing (`_shouldIgnoreDrag` / `shouldIgnoreDrag`) on `ResizeableWindowController` to detect standard and custom sliders (`Slider`, `RangeSlider`, `Thumb`, `Track`, `Scrollbar`, `Knob`), drag gesture recognizers (`RenderSemanticsGestureHandler` with active drag updates), and raw pointer listeners (`RenderPointerListener` with `onPointerMove` or `onPointerPanZoomUpdate`).
+  - Added `shouldIgnoreDragTarget` (`bool Function(HitTestTarget target)?`) to `MdiStyleConfiguration` for custom application-level drag bypass rules.
+  - Set `excludeFromSemantics: true` on `dragWidget`'s `GestureDetector` so window dragging mechanics do not conflict with child drag semantics.
+* **Workspace Pointer Scroll Delegation & Shift+Scroll Support**:
+  - Implemented automatic pointer scroll routing for non-scrollable window areas (empty space, Card, Container, background, and default window header): mouse wheel / trackpad scroll events over these areas now smoothly scroll the parent MDI canvas.
+  - Retained strict scroll isolation for inner scrollable widgets (`ListView`, `SingleChildScrollView`, `TextField`, etc.), ensuring they consume scroll events without propagating to the canvas.
+  - Added **Shift + Scroll** support: holding Shift while rolling the mouse wheel over non-scrollable window areas smoothly translates vertical wheel ticks into horizontal MDI workspace scrolling.
+  - Ensured canvas bounds are immediately recalculated upon window registration (`_recalculateMdiSize()`) in `MdiController`.
+
+## 0.0.7
+
+* **Window Gesture Integration & Arena Resolution**:
+  - Re-architected window body dragging (`draggableBody`) to use `GestureDetector` (via gesture arena resolution) instead of a raw `Listener`. This allows child interactive widgets (such as list views, buttons, scrollbars, and scrollbar thumbs) to naturally win gesture competition and scroll/drag/interact without dragging the window.
+  - Retained raw `Listener` behavior specifically for the unfocus blocker to maintain seamless click-focus-and-drag mechanics when the window is clicked while unfocused.
+* **Scope Isolation for Scroll Physics**:
+  - Moved the hover-driven MDI scroll physics lock (`NeverScrollableScrollPhysics`) directly to the MDI canvas's `SingleChildScrollView`s rather than applying it globally via the inherited `ScrollConfiguration`. This isolates gesture locks to the canvas level, keeping child scroll views inside windows fully interactive.
+
 ## 0.0.6
 
 * **Pointer Drag Interception & Ignore Mechanics**:

@@ -287,11 +287,13 @@ class MdiController extends ChangeNotifier {
       onStartDrag: (event) => startDrag(ctrl, event),
       onStartResize: (event, {side, corner}) => startResize(ctrl, event, side: side, corner: corner),
       onHoverChange: (isHovering) => setWindowHover(ctrl.tag, isHovering),
+      onWorkspacePointerScroll: handleWorkspacePointerScroll,
     );
 
     if (isMaximize) ctrl.toggleMaximize(screenSize, true);
 
     _registerWindow(tag, ctrl);
+    _recalculateMdiSize();
 
     if (notify) {
       notifyListeners();
@@ -401,6 +403,7 @@ class MdiController extends ChangeNotifier {
           },
           onArgumentUpdate: (_) => _emitWindowChange(ctrl.tag),
           onHoverChange: (isHovering) => setWindowHover(ctrl.tag, isHovering),
+          onWorkspacePointerScroll: handleWorkspacePointerScroll,
         );
         
         if (isMaximize) ctrl.toggleMaximize(screenSize, true);
@@ -626,6 +629,34 @@ class MdiController extends ChangeNotifier {
             .jumpTo(verticalScrollBarController.position.pixels);
       }
     });
+  }
+
+  void handleWorkspacePointerScroll(PointerScrollEvent event) {
+    if (isMaximize) return;
+
+    double dx = event.scrollDelta.dx;
+    double dy = event.scrollDelta.dy;
+
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+    if (isShift && dx == 0.0 && dy != 0.0) {
+      dx = dy;
+      dy = 0.0;
+    }
+
+    if (dy != 0 && verticalController.hasClients) {
+      final target = (verticalController.offset + dy)
+          .clamp(0.0, verticalController.position.maxScrollExtent);
+      if (target != verticalController.offset) {
+        verticalController.jumpTo(target);
+      }
+    }
+    if (dx != 0 && horizontalController.hasClients) {
+      final target = (horizontalController.offset + dx)
+          .clamp(0.0, horizontalController.position.maxScrollExtent);
+      if (target != horizontalController.offset) {
+        horizontalController.jumpTo(target);
+      }
+    }
   }
 
   Duration _scrollDuration(ScrollController sc, double target) {

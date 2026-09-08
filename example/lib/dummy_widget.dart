@@ -18,6 +18,8 @@ class _DummyWidgetState extends State<DummyWidget> {
 
   ResizeableWindowController? controller;
 
+  double slideValue = 1.0;
+
   @override
   void initState() {
     super.initState();
@@ -116,7 +118,16 @@ class _DummyWidgetState extends State<DummyWidget> {
                   ],
                 );
               });
-            }, child: Text("Show Dialog"))
+            }, child: Text("Show Dialog")),
+            Slider(value: slideValue, onChanged: (val){
+              setState(() {
+                slideValue = val;
+              });
+            },
+              min: 0.5,
+              max: 2,
+              divisions: 30,
+            ),
           ],
         ),
       ),

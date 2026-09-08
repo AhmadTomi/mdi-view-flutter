@@ -12,6 +12,8 @@ A Flutter package that provides a Multiple Document Interface (MDI) experience, 
 
 *   **Multiple Windows:** Open and manage multiple windows simultaneously.
 *   **Performance-First Architecture:** Subtree rendering caching (via controller widget caching) completely eliminates layout thrashing and unnecessary chrome repaints when shifting window Z-order or layouts.
+*   **Seamless Draggable Body & Child Gesture Bypass:** Window bodies can be dragged from empty/background areas (`draggableBody: true`) while automatically bypassing interactive child widgets (Sliders, TextFields, ListViews, custom drag gestures, and pointer listeners).
+*   **Workspace Scroll & Shift+Scroll Delegation:** Mouse wheel and trackpad scroll over empty space, Cards, Containers, or headers smoothly scrolls the parent MDI workspace. Holding `Shift` scrolls the workspace horizontally.
 *   **Workspace Persistence & Diff Reconciliation:** Export layout configurations to a JSON-compatible format. Restoring layout uses diff reconciliation to modify active window positions in-place, preserving input state, text selections, and scroll positions.
 *   **Magnetic Edge Snapping:** Dragging or resizing window borders close to canvas boundaries or sibling window edges (within 12px) snaps them flush automatically.
 *   **Cross-Platform Keyboard Accessibility:** Fully navigable using native desktop shortcuts with fallback alternatives for web builds where standard hotkeys are browser-reserved.
@@ -141,6 +143,25 @@ controller.importLayout(
 | **Cycle Focus Next** | `Ctrl + Tab` or `Ctrl + Alt + ArrowRight` | `Ctrl + .` (Period) or `Ctrl + Alt + ArrowRight` |
 | **Cycle Focus Previous** | `Ctrl + Shift + Tab` or `Ctrl + Alt + ArrowLeft` | `Ctrl + ,` (Comma) or `Ctrl + Alt + ArrowLeft` |
 | **Close Active Window** | `Ctrl + W` or `Ctrl + F4` | `Alt + W` |
+
+---
+
+## Draggable Window Body & Workspace Scrolling
+
+### Draggable Body with Automatic Gesture Bypass
+By default (`draggableBody: true`), windows can be dragged from the title bar header as well as any empty/background area of the window body.
+
+Interactive child widgets are automatically detected and protected from accidental window drags:
+* **Sliders & Controls**: Built-in `Slider`, `RangeSlider`, and custom components containing `Thumb`, `Track`, `Scrollbar`, or `Knob` in their render objects.
+* **Scrollables**: `ListView`, `GridView`, `SingleChildScrollView`, and all custom viewports.
+* **Text Inputs**: `TextField`, `TextFormField`, and editable text render objects.
+* **Custom Gestures**: Any child widget with active horizontal/vertical drag callbacks or raw pointer movement listeners (`RenderPointerListener.onPointerMove`).
+* **Explicit Exclusions**: Wrap custom widgets with `IgnoreWindowDrag(child: ...)` or provide a custom predicate via `MdiStyleConfiguration.shouldIgnoreDragTarget`.
+
+### Workspace Scroll & Shift+Scroll Delegation
+* Scrolling the mouse wheel over non-scrollable areas inside a window (empty background space, Cards, Containers, or the window header) will scroll the parent MDI canvas vertically.
+* Inner scrollable widgets (e.g. `ListView`) retain full isolation and consume scroll events locally.
+* Holding **Shift** while rolling the mouse wheel over non-scrollable window areas smoothly scrolls the MDI workspace horizontally.
 
 ---
 

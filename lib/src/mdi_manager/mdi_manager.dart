@@ -101,6 +101,9 @@ class _MdiCanvas extends StatelessWidget {
             _updateScreenSize(constraints.biggest);
 
           final isMax = controller.isMaximize;
+          final canvasPhysics = (isMax || controller.isHoveringAnyWindow)
+              ? const NeverScrollableScrollPhysics()
+              : const ClampingScrollPhysics();
 
           return ScrollConfiguration(
             behavior: const ScrollBehavior().copyWith(
@@ -110,9 +113,6 @@ class _MdiCanvas extends StatelessWidget {
                 PointerDeviceKind.trackpad,
               },
               scrollbars: false,
-              physics: (isMax || controller.isHoveringAnyWindow)
-                  ? const NeverScrollableScrollPhysics()
-                  : const ClampingScrollPhysics(),
             ),
             child: Stack(
               children: [
@@ -128,10 +128,12 @@ class _MdiCanvas extends StatelessWidget {
                       controller: controller.horizontalController,
                       scrollDirection: Axis.horizontal,
                       hitTestBehavior: HitTestBehavior.opaque,
+                      physics: canvasPhysics,
                       child: SingleChildScrollView(
                         controller: controller.verticalController,
                         scrollDirection: Axis.vertical,
                         hitTestBehavior: HitTestBehavior.opaque,
+                        physics: canvasPhysics,
                         child: SizedBox.fromSize(
                           size: controller.mdiSize,
                           child: RepaintBoundary(

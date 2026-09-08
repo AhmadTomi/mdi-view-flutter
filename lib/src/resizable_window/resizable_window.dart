@@ -34,8 +34,11 @@ class ResizableWindowState extends State<ResizableWindow> {
 
     _cachedContent = RepaintBoundary(
       child: AnimatedBuilder(
-        animation: _controller.focusScopeNode,
-        builder: (_, __) => _controller.child(_controller),
+        animation: Listenable.merge([
+          _controller.focusScopeNode,
+          _controller.hoverNotifier,
+        ]),
+        builder: (_, _) => _controller.child(_controller),
       ),
     );
 
@@ -60,7 +63,8 @@ class ResizableWindowState extends State<ResizableWindow> {
     final double scaledDpr = MediaQuery.devicePixelRatioOf(context);
 
     // Snap to the nearest EXACT physical device pixel
-    double snap(double value) => (value * scaledDpr).roundToDouble() / scaledDpr;
+    double snap(double value) =>
+        (value * scaledDpr).roundToDouble() / scaledDpr;
 
     return Positioned(
       top: snap(_controller.y),
@@ -85,11 +89,16 @@ class ResizableWindowState extends State<ResizableWindow> {
     if (mounted) setState(() {});
   }
 
-  Widget _buildWindowChrome(BuildContext context, double Function(double) snap) {
+  Widget _buildWindowChrome(
+    BuildContext context,
+    double Function(double) snap,
+  ) {
     final style = MdiStyleProvider.of(context);
     final double rawGap = _controller.isMaximized ? 0.0 : style.gap.toDouble();
     final double snappedGap = snap(rawGap);
-    final radius = _controller.isMaximized ? 0.0 : style.borderRadius.toDouble();
+    final radius = _controller.isMaximized
+        ? 0.0
+        : style.borderRadius.toDouble();
 
     final Widget nestedNavigator = Navigator(
       onGenerateRoute: (RouteSettings settings) {
@@ -102,17 +111,7 @@ class ResizableWindowState extends State<ResizableWindow> {
 
     final Widget childContent = NotificationListener<ScrollNotification>(
       onNotification: (_) => true,
-      child: Listener(
-        onPointerSignal: (pointerSignal) {
-          if (pointerSignal is PointerScrollEvent) {
-            GestureBinding.instance.pointerSignalResolver.register(
-              pointerSignal,
-              (event) {},
-            );
-          }
-        },
-        child: nestedNavigator,
-      ),
+      child: nestedNavigator,
     );
 
     final Widget windowContent;
@@ -123,7 +122,9 @@ class ResizableWindowState extends State<ResizableWindow> {
           _controller.dragWidget(
             child: Container(
               height: style.defaultHeaderHeight,
-              color: _controller.hasFocus ? style.focusedHeaderColor : style.unfocusedHeaderColor,
+              color: _controller.hasFocus
+                  ? style.focusedHeaderColor
+                  : style.unfocusedHeaderColor,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Row(
                 children: [
@@ -158,6 +159,29 @@ class ResizableWindowState extends State<ResizableWindow> {
     } else {
       windowContent = childContent;
     }
+
+    final Widget windowContentWithScroll = Listener(
+      onPointerSignal: (pointerSignal) {
+        if (pointerSignal is PointerScrollEvent) {
+          if (_controller.shouldIgnoreDrag(pointerSignal.position)) {
+            GestureBinding.instance.pointerSignalResolver.register(
+              pointerSignal,
+              (event) {},
+            );
+          } else {
+            GestureBinding.instance.pointerSignalResolver.register(
+              pointerSignal,
+              (event) {
+                if (event is PointerScrollEvent) {
+                  _controller.onWorkspacePointerScroll?.call(event);
+                }
+              },
+            );
+          }
+        }
+      },
+      child: windowContent,
+    );
 
     return ResizableWindowProvider(
       controller: _controller,
@@ -198,14 +222,19 @@ class ResizableWindowState extends State<ResizableWindow> {
                         style: style,
                         radius: radius,
                         content: style.draggableBody
-                            ? _controller.dragWidget(child: windowContent, canDoubleClick: false)
-                            : windowContent,
+                            ? _controller.dragWidget(
+                                child: windowContentWithScroll,
+                                canDoubleClick: false,
+                                useGestureDetector: true,
+                              )
+                            : windowContentWithScroll,
                       ),
 
                       // ── Unfocus overlay ─────────────────────────────────
                       _UnfocusBlocker(
                         color: style.unfocusBlockerColor,
-                        active: !_controller.hasFocus,
+                        active: !_controller.hasFocus && !_controller.isHovered,
+                        radius: radius,
                         controller: _controller,
                       ),
 
@@ -281,40 +310,32 @@ class _WindowSurface extends StatelessWidget {
 class _UnfocusBlocker extends StatelessWidget {
   final Color color;
   final bool active;
+  final double radius;
   final ResizeableWindowController controller;
 
   const _UnfocusBlocker({
     required this.color,
     required this.active,
+    required this.radius,
     required this.controller,
   });
 
   @override
   Widget build(BuildContext context) {
-    final child = IgnorePointer(
-      ignoring: !active,
-      child: AbsorbPointer(
-        absorbing: active,
-        child: ColoredBox(
-          color: active ? color : Colors.transparent,
-          child: const SizedBox.expand(),
-        ),
+    if (!active) {
+      return const SizedBox.shrink();
+    }
+
+    final child = ClipRRect(
+      clipBehavior: Clip.antiAlias,
+      borderRadius: BorderRadius.circular(radius),
+      child: ColoredBox(
+        color: color,
+        child: const SizedBox.expand(),
       ),
     );
 
-    // Only wrap in dragWidget when the window is unfocused so that
-    // clicking the blocker starts a seamless drag.  When focused,
-    // the blocker must be fully transparent to pointer events — otherwise
-    // its Listener fires startDrag on every click and interferes with
-    // the header's GestureDetector double-tap / maximize logic.
-    if (active) {
-      return controller.dragWidget(
-        canDoubleClick: false,
-        child: child,
-      );
-    }
-
-    return child;
+    return controller.dragWidget(canDoubleClick: false, child: child);
   }
 }
 
@@ -331,8 +352,7 @@ class _EdgeHandle extends StatelessWidget {
   const _EdgeHandle.top(this.controller) : side = EdgeSide.top;
   const _EdgeHandle.bottom(this.controller) : side = EdgeSide.bottom;
 
-  bool get _isHorizontal =>
-      side == EdgeSide.left || side == EdgeSide.right;
+  bool get _isHorizontal => side == EdgeSide.left || side == EdgeSide.right;
 
   @override
   Widget build(BuildContext context) {
@@ -342,18 +362,10 @@ class _EdgeHandle extends StatelessWidget {
     // unpinned axis collapses to the child's intrinsic size — which is 0,
     // since the SizedBox below only declares a size on its own axis.
     return Positioned(
-      left: side == EdgeSide.left
-          ? 0
-          : (!_isHorizontal ? 0 : null),
-      right: side == EdgeSide.right
-          ? 0
-          : (!_isHorizontal ? 0 : null),
-      top: side == EdgeSide.top
-          ? 0
-          : (_isHorizontal ? 0 : null),
-      bottom: side == EdgeSide.bottom
-          ? 0
-          : (_isHorizontal ? 0 : null),
+      left: side == EdgeSide.left ? 0 : (!_isHorizontal ? 0 : null),
+      right: side == EdgeSide.right ? 0 : (!_isHorizontal ? 0 : null),
+      top: side == EdgeSide.top ? 0 : (_isHorizontal ? 0 : null),
+      bottom: side == EdgeSide.bottom ? 0 : (_isHorizontal ? 0 : null),
       child: Listener(
         behavior: HitTestBehavior.translucent,
         onPointerDown: (event) {
@@ -384,17 +396,17 @@ class _CornerHandle extends StatelessWidget {
   final CornerSide side;
 
   const _CornerHandle.bottomRight(this.controller)
-      : side = CornerSide.bottomRight;
+    : side = CornerSide.bottomRight;
   const _CornerHandle.bottomLeft(this.controller)
-      : side = CornerSide.bottomLeft;
+    : side = CornerSide.bottomLeft;
   const _CornerHandle.topRight(this.controller) : side = CornerSide.topRight;
   const _CornerHandle.topLeft(this.controller) : side = CornerSide.topLeft;
 
   MouseCursor get _cursor => switch (side) {
-    CornerSide.topLeft || CornerSide.bottomRight =>
-    SystemMouseCursors.resizeUpLeftDownRight,
-    CornerSide.topRight || CornerSide.bottomLeft =>
-    SystemMouseCursors.resizeUpRightDownLeft,
+    CornerSide.topLeft ||
+    CornerSide.bottomRight => SystemMouseCursors.resizeUpLeftDownRight,
+    CornerSide.topRight ||
+    CornerSide.bottomLeft => SystemMouseCursors.resizeUpRightDownLeft,
   };
 
   @override
@@ -490,4 +502,4 @@ class _IgnoreWindowDragState extends State<IgnoreWindowDrag> {
   Widget build(BuildContext context) {
     return widget.child;
   }
-}
+}
