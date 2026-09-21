@@ -1661,6 +1661,148 @@ void main() {
       controller.dispose();
     });
 
+    test('Horizontal resize snaps to multiples of minWidth within snapRange', () {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 800);
+
+      final w = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (_) => Container(),
+      );
+
+      // 1. Within snapRange (diff: 15 < 30) -> snaps to 300
+      w.currentWidth = 285;
+      w.onHorizontalRightDragEnd(DragEndDetails());
+      expect(w.currentWidth, 300.0);
+
+      // 2. Outside snapRange (diff: 50 >= 30) -> does not snap
+      w.currentWidth = 250;
+      w.onHorizontalRightDragEnd(DragEndDetails());
+      expect(w.currentWidth, 250.0);
+
+      // 3. Resize left edge within snapRange preserves right edge
+      w.x = 105;
+      w.currentWidth = 285; // Right edge is 105 + 285 = 390.
+      w.onHorizontalLeftDragEnd(DragEndDetails());
+      expect(w.currentWidth, 300.0);
+      expect(w.x + w.currentWidth, 390.0); // right edge preserved
+
+      controller.dispose();
+    });
+
+    test('Vertical resize snaps to multiples of minHeight within snapRange', () {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 800);
+
+      final w = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (_) => Container(),
+      );
+
+      // 1. Within snapRange (diff: 10 < 30) -> snaps to 200
+      w.currentHeight = 190;
+      w.onVerticalDragBottomEnd(DragEndDetails());
+      expect(w.currentHeight, 200.0);
+
+      // 2. Outside snapRange (diff: 50 >= 30) -> does not snap
+      w.currentHeight = 150;
+      w.onVerticalDragBottomEnd(DragEndDetails());
+      expect(w.currentHeight, 150.0);
+
+      // 3. Resize top edge within snapRange preserves bottom edge
+      w.y = 100;
+      w.currentHeight = 190; // Bottom edge is 100 + 190 = 290.
+      w.onVerticalDragTopEnd(DragEndDetails());
+      expect(w.currentHeight, 200.0);
+      expect(w.y + w.currentHeight, 290.0); // bottom edge preserved
+
+      controller.dispose();
+    });
+
+    test('Corner resize snaps both width and height to multiples', () {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 800);
+
+      final w = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (_) => Container(),
+      );
+
+      w.currentWidth = 285;
+      w.currentHeight = 190;
+      w.snapResize(corner: CornerSide.bottomRight);
+      expect(w.currentWidth, 300.0);
+      expect(w.currentHeight, 200.0);
+
+      controller.dispose();
+    });
+
+    test('Window position snaps to grid of minWidth and minHeight', () {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 800);
+
+      final w = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (_) => Container(),
+      );
+
+      // 1. Both X and Y within snapRange (100 is multiple of 100; x=190->200, y=205->200)
+      w.x = 190;
+      w.y = 205;
+      w.snapWindowPosition();
+      expect(w.x, 200.0);
+      expect(w.y, 200.0);
+
+      // 2. Outside snapRange (x=250 is 50px away from 200 and 300) -> does not snap
+      w.x = 250;
+      w.y = 205;
+      w.snapWindowPosition();
+      expect(w.x, 250.0);
+      expect(w.y, 205.0);
+
+      controller.dispose();
+    });
+
     test('Layout reconciliation preserves existing window controller instances', () {
       final controller = MdiController();
       controller.init();

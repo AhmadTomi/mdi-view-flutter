@@ -830,11 +830,16 @@ class MdiController extends ChangeNotifier {
       notifyListeners();
     } else if (_resizedWindow != null) {
       final ctrl = _resizedWindow!;
+      final side = _resizedSide;
+      final corner = _resizedCorner;
       _resizedWindow = null;
       _resizedSide = null;
       _resizedCorner = null;
       _resizePointerStart = null;
       _resizeWindowStartRect = null;
+      if (!ctrl.isMaximized) {
+        ctrl.snapResize(side: side, corner: corner);
+      }
       ctrl.positionChangeAction();
       notifyListeners();
     }

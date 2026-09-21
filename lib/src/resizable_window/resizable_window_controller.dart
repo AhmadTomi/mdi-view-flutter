@@ -439,32 +439,32 @@ class ResizeableWindowController extends ChangeNotifier {
 
   void moveLeft() {
     if (isMaximized) return;
-    x = max(0.0, _snap(x - ParameterWindow.defaultWidth, ParameterWindow.defaultWidth));
-    y = max(0.0, _snap(y, ParameterWindow.defaultMinHeight));
+    x = max(0.0, _snap(x - minWidth, minWidth));
+    y = max(0.0, _snap(y, minHeight));
     notifyListeners();
     positionChangeAction();
   }
 
   void moveRight() {
     if (isMaximized) return;
-    x = max(0.0, _snap(x + ParameterWindow.defaultWidth, ParameterWindow.defaultWidth));
-    y = max(0.0, _snap(y, ParameterWindow.defaultMinHeight));
+    x = max(0.0, _snap(x + minWidth, minWidth));
+    y = max(0.0, _snap(y, minHeight));
     notifyListeners();
     positionChangeAction();
   }
 
   void moveUp() {
     if (isMaximized) return;
-    y = max(0.0, _snap(y - ParameterWindow.defaultMinHeight, ParameterWindow.defaultMinHeight));
-    x = max(0.0, _snap(x, ParameterWindow.defaultWidth));
+    y = max(0.0, _snap(y - minHeight, minHeight));
+    x = max(0.0, _snap(x, minWidth));
     notifyListeners();
     positionChangeAction();
   }
 
   void moveDown() {
     if (isMaximized) return;
-    y = max(0.0, _snap(y + ParameterWindow.defaultMinHeight, ParameterWindow.defaultMinHeight));
-    x = max(0.0, _snap(x, ParameterWindow.defaultWidth));
+    y = max(0.0, _snap(y + minHeight, minHeight));
+    x = max(0.0, _snap(x, minWidth));
     notifyListeners();
     positionChangeAction();
   }
@@ -511,10 +511,11 @@ class ResizeableWindowController extends ChangeNotifier {
           notifyListeners();
         },
         onPanEnd: (details) {
+          final wasDragging = _panDragStart != null;
           _panDragStart = null;
           _panPointerStart = null;
           dragOffsetNotifier.value = Offset.zero;
-          if (!isMaximized) {
+          if (!isMaximized && wasDragging) {
             snapWindowPosition();
             positionChangeAction();
           }
@@ -547,15 +548,79 @@ class ResizeableWindowController extends ChangeNotifier {
 
   void snapWindowPosition() {
     final snappedToEdge = _snapToNearestEdges();
-    if (!snappedToEdge) {
+    if (!snappedToEdge && minWidth > 0 && minHeight > 0) {
       final snapped = _snapSize(
         Size(x, y),
-        Size(ParameterWindow.defaultWidth, ParameterWindow.defaultMinHeight),
+        Size(minWidth, minHeight),
       );
       if (snapped != null) {
-        x = snapped.width;
-        y = snapped.height;
+        x = max(0.0, snapped.width);
+        y = max(0.0, snapped.height);
         notifyListeners();
+      }
+    }
+  }
+
+  void snapResize({EdgeSide? side, CornerSide? corner}) {
+    if (isMaximized) return;
+
+    if (side != null) {
+      switch (side) {
+        case EdgeSide.right:
+          if (!_snapRightEdgeToOtherWindows()) {
+            _trySnapWidth(preserveRight: false);
+          }
+          break;
+        case EdgeSide.left:
+          if (!_snapLeftEdgeToOtherWindows()) {
+            _trySnapWidth(preserveRight: true);
+          }
+          break;
+        case EdgeSide.bottom:
+          if (!_snapBottomEdgeToOtherWindows()) {
+            _trySnapHeight(preserveBottom: false);
+          }
+          break;
+        case EdgeSide.top:
+          if (!_snapTopEdgeToOtherWindows()) {
+            _trySnapHeight(preserveBottom: true);
+          }
+          break;
+      }
+    } else if (corner != null) {
+      switch (corner) {
+        case CornerSide.bottomRight:
+          if (!_snapRightEdgeToOtherWindows()) {
+            _trySnapWidth(preserveRight: false);
+          }
+          if (!_snapBottomEdgeToOtherWindows()) {
+            _trySnapHeight(preserveBottom: false);
+          }
+          break;
+        case CornerSide.bottomLeft:
+          if (!_snapLeftEdgeToOtherWindows()) {
+            _trySnapWidth(preserveRight: true);
+          }
+          if (!_snapBottomEdgeToOtherWindows()) {
+            _trySnapHeight(preserveBottom: false);
+          }
+          break;
+        case CornerSide.topRight:
+          if (!_snapRightEdgeToOtherWindows()) {
+            _trySnapWidth(preserveRight: false);
+          }
+          if (!_snapTopEdgeToOtherWindows()) {
+            _trySnapHeight(preserveBottom: true);
+          }
+          break;
+        case CornerSide.topLeft:
+          if (!_snapLeftEdgeToOtherWindows()) {
+            _trySnapWidth(preserveRight: true);
+          }
+          if (!_snapTopEdgeToOtherWindows()) {
+            _trySnapHeight(preserveBottom: true);
+          }
+          break;
       }
     }
   }
@@ -932,12 +997,14 @@ class ResizeableWindowController extends ChangeNotifier {
   }
 
   void _trySnapHeight({required bool preserveBottom}) {
-    final snapped = _snap(currentHeight, ParameterWindow.defaultMinHeight);
+    final step = minHeight;
+    if (step <= 0) return;
+    final snapped = max(step, _snap(currentHeight, step));
     if ((currentHeight - snapped).abs() < snapRange) {
       if (preserveBottom) {
         final bottom = y + currentHeight;
         currentHeight = snapped;
-        y = bottom - currentHeight;
+        y = max(0.0, bottom - currentHeight);
       } else {
         currentHeight = snapped;
       }
@@ -946,12 +1013,14 @@ class ResizeableWindowController extends ChangeNotifier {
   }
 
   void _trySnapWidth({required bool preserveRight}) {
-    final snapped = _snap(currentWidth, ParameterWindow.defaultWidth);
+    final step = minWidth;
+    if (step <= 0) return;
+    final snapped = max(step, _snap(currentWidth, step));
     if ((currentWidth - snapped).abs() < snapRange) {
       if (preserveRight) {
         final right = x + currentWidth;
         currentWidth = snapped;
-        x = right - currentWidth;
+        x = max(0.0, right - currentWidth);
       } else {
         currentWidth = snapped;
       }
