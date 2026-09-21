@@ -31,13 +31,34 @@ class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
   MdiController controller = MdiController();
   List<Map<String, dynamic>>? _savedLayout;
   int count = 1;
+
+  double _zoomScale = 1.0;
+  static const List<double> _presetScales = [0.75, 1.0, 1.25, 1.5, 1.7, 2.0];
+
+  void _setZoom(double scale) {
+    setState(() {
+      _zoomScale = double.parse(scale.clamp(0.5, 2.5).toStringAsFixed(2));
+    });
+  }
+
+  void _zoomIn() {
+    _setZoom(_zoomScale + 0.1);
+  }
+
+  void _zoomOut() {
+    _setZoom(_zoomScale - 0.1);
+  }
+
+  void _resetZoom() {
+    _setZoom(1.0);
+  }
 
   @override
   void initState() {
@@ -126,6 +147,31 @@ class _MyHomePageState extends State<MyHomePage> {
         title: const Text('Flutter MDI Enterprise Demo', style: TextStyle(color: Colors.white, fontSize: 18)),
         backgroundColor: Colors.blue.shade900,
         elevation: 2,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _zoomScale == 1.7 ? Colors.amber.shade700 : Colors.blue.shade800,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.zoom_in, color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Zoom: ${(_zoomScale * 100).toInt()}% (FittedBox)',
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Row(
         children: [
@@ -180,6 +226,124 @@ class _MyHomePageState extends State<MyHomePage> {
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Zoom & Scale Mechanism (FittedBox)
+                  const Text(
+                    'ZOOM MECHANISM (FittedBox)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: _zoomScale > 0.5 ? _zoomOut : null,
+                              icon: const Icon(Icons.remove_circle_outline, size: 20),
+                              tooltip: 'Zoom Out (-10%)',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            ),
+                            Expanded(
+                              child: Container(
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: _zoomScale == 1.7
+                                      ? Colors.amber.shade100
+                                      : Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: _zoomScale == 1.7
+                                        ? Colors.amber.shade700
+                                        : Colors.blue.shade200,
+                                  ),
+                                ),
+                                child: Text(
+                                  '${(_zoomScale * 100).toInt()}%',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: _zoomScale == 1.7
+                                        ? Colors.amber.shade900
+                                        : Colors.blue.shade900,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _zoomScale < 2.5 ? _zoomIn : null,
+                              icon: const Icon(Icons.add_circle_outline, size: 20),
+                              tooltip: 'Zoom In (+10%)',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            ),
+                            const SizedBox(width: 4),
+                            TextButton(
+                              onPressed: _zoomScale != 1.0 ? _resetZoom : null,
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text('Reset', style: TextStyle(fontSize: 11)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 3,
+                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                          ),
+                          child: Slider(
+                            value: _zoomScale,
+                            min: 0.5,
+                            max: 2.5,
+                            divisions: 20,
+                            label: '${(_zoomScale * 100).toInt()}%',
+                            onChanged: _setZoom,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: _presetScales.map((scale) {
+                            final percent = (scale * 100).toInt();
+                            final isSelected = (_zoomScale - scale).abs() < 0.01;
+                            return ChoiceChip(
+                              label: Text(
+                                '$percent%',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected
+                                      ? (scale == 1.7 ? Colors.amber.shade900 : Colors.blue.shade900)
+                                      : Colors.black87,
+                                ),
+                              ),
+                              selected: isSelected,
+                              selectedColor: scale == 1.7 ? Colors.amber.shade300 : Colors.blue.shade200,
+                              onSelected: (_) => _setZoom(scale),
+                              visualDensity: VisualDensity.compact,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                            );
+                          }).toList(),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -308,16 +472,40 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
 
-          // MDI Canvas
+          // MDI Canvas with FittedBox Zoom Mechanism
           Expanded(
-            child: MdiManager(
-              controller: controller,
-              style: MdiStyleConfiguration(
-                borderRadius: 4,
-                gap: 1,
-                tabMenuMinWidth: 60,
-                unfocusBlockerColor: Colors.black38,
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final physicalSize = constraints.biggest;
+                final virtualSize = physicalSize / _zoomScale;
+
+                return ClipRect(
+                  child: MediaQuery(
+                    data: MediaQuery.of(context).copyWith(
+                      size: virtualSize,
+                      devicePixelRatio:
+                          MediaQuery.of(context).devicePixelRatio * _zoomScale,
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      alignment: Alignment.topLeft,
+                      child: SizedBox(
+                        width: virtualSize.width,
+                        height: virtualSize.height,
+                        child: MdiManager(
+                          controller: controller,
+                          style: MdiStyleConfiguration(
+                            borderRadius: 4,
+                            gap: 1,
+                            tabMenuMinWidth: 60,
+                            unfocusBlockerColor: Colors.black38,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],

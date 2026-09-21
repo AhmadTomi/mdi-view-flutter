@@ -2118,5 +2118,219 @@ void main() {
 
       controller.dispose();
     });
+
+    testWidgets('Window dragging under 170% zoom/scale tracks mouse cursor 1:1 in device coordinates', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 1000);
+
+      const double zoomScale = 1.7;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Transform.scale(
+              scale: zoomScale,
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 1000,
+                height: 1000,
+                child: MdiManager(controller: controller),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+        ),
+        child: (c) => Container(color: Colors.amber),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(w1.x, 100.0);
+      expect(w1.y, 100.0);
+
+      // Start drag from center of window W1
+      final w1Center = tester.getCenter(find.byWidget(w1.widget));
+      final gesture = await tester.startGesture(
+        w1Center,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      // Move mouse pointer by 170 physical/device pixels in X and Y
+      // Under 1.7 scale, 170 device pixels = 100 canvas/virtual pixels.
+      await gesture.moveBy(const Offset(170, 170));
+      await tester.pump();
+
+      // Window position in canvas coordinates must be 100 + 100 = 200 (not 100 + 170 = 270!)
+      expect(w1.x, closeTo(200.0, 0.001));
+      expect(w1.y, closeTo(200.0, 0.001));
+
+      // Move mouse pointer by another 85 physical/device pixels (85 / 1.7 = 50 canvas pixels)
+      await gesture.moveBy(const Offset(85, 85));
+      await tester.pump();
+
+      expect(w1.x, closeTo(250.0, 0.001));
+      expect(w1.y, closeTo(250.0, 0.001));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(w1.x, closeTo(250.0, 0.001));
+      expect(w1.y, closeTo(250.0, 0.001));
+
+      controller.dispose();
+    });
+
+    testWidgets('Window dragging under FittedBox zoom (neo_online_trading pattern) tracks mouse 1:1', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(2000, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 1000);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 1700,
+                height: 1700,
+                child: FittedBox(
+                  fit: BoxFit.fill,
+                  child: SizedBox(
+                    width: 1000,
+                    height: 1000,
+                    child: MdiManager(controller: controller),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (c) => Container(color: Colors.amber),
+      );
+
+      await tester.pumpAndSettle();
+
+      final w1Center = tester.getCenter(find.byWidget(w1.widget));
+      final gesture = await tester.startGesture(
+        w1Center,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      // Move 170 physical pixels (which corresponds to 100 virtual canvas units)
+      await gesture.moveBy(const Offset(170, 170));
+      await tester.pump();
+
+      expect(w1.x, closeTo(200.0, 0.001));
+      expect(w1.y, closeTo(200.0, 0.001));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      controller.dispose();
+    });
+
+    testWidgets('Window resizing under 170% zoom/scale tracks mouse cursor 1:1 in device coordinates', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 1000);
+
+      const double zoomScale = 1.7;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Transform.scale(
+              scale: zoomScale,
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 1000,
+                height: 1000,
+                child: MdiManager(controller: controller),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 100,
+          y: 100,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (c) => Container(color: Colors.amber),
+      );
+
+      await tester.pumpAndSettle();
+
+      final resizeFrameFinder = find.byType(WindowResizeFrame);
+      expect(resizeFrameFinder, findsOneWidget);
+
+      final resizeBox = tester.renderObject(resizeFrameFinder) as RenderBox;
+      final rightEdgeLocal = Offset(resizeBox.size.width - 2, resizeBox.size.height / 2);
+      final rightEdgeGlobal = resizeBox.localToGlobal(rightEdgeLocal);
+
+      final gesture = await tester.startGesture(
+        rightEdgeGlobal,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      // Drag right edge outward by 85 physical pixels (85 / 1.7 = 50 canvas units)
+      await gesture.moveBy(const Offset(85, 0));
+      await tester.pump();
+
+      expect(w1.currentWidth, closeTo(250.0, 0.001));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(w1.currentWidth, closeTo(250.0, 0.001));
+
+      controller.dispose();
+    });
   });
 }

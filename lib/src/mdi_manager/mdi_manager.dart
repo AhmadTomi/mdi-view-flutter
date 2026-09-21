@@ -138,6 +138,7 @@ class _MdiCanvas extends StatelessWidget {
                           size: controller.mdiSize,
                           child: RepaintBoundary(
                             child: Stack(
+                              key: controller.canvasKey,
                               children: controller.windows
                                   .map((c) => c.widget)
                                   .toList(growable: false),

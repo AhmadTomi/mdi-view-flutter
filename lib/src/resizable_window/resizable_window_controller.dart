@@ -86,6 +86,7 @@ class ResizeableWindowController extends ChangeNotifier {
   void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? _onStartResize;
   void Function(bool isHovering)? _onHoverChange;
   void Function(PointerScrollEvent event)? _onWorkspacePointerScroll;
+  Offset Function(Offset globalPosition)? _globalToCanvas;
 
   void Function(PointerScrollEvent event)? get onWorkspacePointerScroll =>
       _onWorkspacePointerScroll;
@@ -279,6 +280,7 @@ class ResizeableWindowController extends ChangeNotifier {
     void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? onStartResize,
     void Function(bool isHovering)? onHoverChange,
     void Function(PointerScrollEvent event)? onWorkspacePointerScroll,
+    Offset Function(Offset globalPosition)? globalToCanvas,
   }) {
     this.onFocusChange = onFocusChange;
     _onClose = onClose;
@@ -290,6 +292,27 @@ class ResizeableWindowController extends ChangeNotifier {
     _onStartResize = onStartResize;
     _onHoverChange = onHoverChange;
     _onWorkspacePointerScroll = onWorkspacePointerScroll;
+    _globalToCanvas = globalToCanvas;
+  }
+
+  /// Converts a global pointer position (in unscaled screen/device pixels) into
+  /// the local coordinate space of the MDI canvas.
+  Offset toCanvasCoordinates(Offset globalPosition) {
+    if (_globalToCanvas != null) {
+      return _globalToCanvas!(globalPosition);
+    }
+    final key = GlobalObjectKey(this);
+    final context = key.currentContext;
+    if (context != null && context.mounted) {
+      final box = context.findRenderObject() as RenderBox?;
+      final parentBox = box?.parent as RenderBox?;
+      if (parentBox != null && parentBox.hasSize) {
+        try {
+          return parentBox.globalToLocal(globalPosition);
+        } catch (_) {}
+      }
+    }
+    return globalPosition;
   }
 
   /// Evaluates whether a pointer event at [globalPosition] should bypass window
@@ -476,12 +499,13 @@ class ResizeableWindowController extends ChangeNotifier {
           bringToFront();
           // Store drag origin so onPanUpdate can compute deltas.
           _panDragStart = Offset(x, y);
-          _panPointerStart = details.globalPosition;
+          _panPointerStart = toCanvasCoordinates(details.globalPosition);
           dragOffsetNotifier.value = Offset.zero;
         },
         onPanUpdate: (details) {
           if (isMaximized || _panDragStart == null) return;
-          final delta = details.globalPosition - _panPointerStart!;
+          final currentPos = toCanvasCoordinates(details.globalPosition);
+          final delta = currentPos - _panPointerStart!;
           x = (_panDragStart!.dx + delta.dx).clamp(0.0, double.infinity);
           y = (_panDragStart!.dy + delta.dy).clamp(0.0, double.infinity);
           notifyListeners();

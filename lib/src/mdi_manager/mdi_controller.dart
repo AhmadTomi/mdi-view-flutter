@@ -73,6 +73,28 @@ class MdiController extends ChangeNotifier {
     }
   }
 
+  // ── Canvas Key & Coordinate Transformation ─────────────────────────────────
+
+  /// GlobalKey assigned to the canvas [Stack] hosting windows to allow converting
+  /// global pointer positions to local canvas coordinates (scaling/zoom-aware).
+  final GlobalKey canvasKey = GlobalKey();
+
+  /// Converts a global pointer position (in unscaled screen/device pixels) into
+  /// the local coordinate space of the MDI canvas, respecting any ancestor
+  /// scale transforms (e.g. FittedBox zoom, Transform.scale) and scroll offsets.
+  Offset globalToCanvas(Offset globalPosition) {
+    final context = canvasKey.currentContext;
+    if (context != null && context.mounted) {
+      final box = context.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        try {
+          return box.globalToLocal(globalPosition);
+        } catch (_) {}
+      }
+    }
+    return globalPosition;
+  }
+
   // ── Private helpers ───────────────────────────────────────────────────────
 
   final _Debouncer _debouncer = _Debouncer(milliseconds: 100);
@@ -288,6 +310,7 @@ class MdiController extends ChangeNotifier {
       onStartResize: (event, {side, corner}) => startResize(ctrl, event, side: side, corner: corner),
       onHoverChange: (isHovering) => setWindowHover(ctrl.tag, isHovering),
       onWorkspacePointerScroll: handleWorkspacePointerScroll,
+      globalToCanvas: globalToCanvas,
     );
 
     if (isMaximize) ctrl.toggleMaximize(screenSize, true);
@@ -407,6 +430,7 @@ class MdiController extends ChangeNotifier {
           onStartResize: (event, {side, corner}) => startResize(ctrl, event, side: side, corner: corner),
           onHoverChange: (isHovering) => setWindowHover(ctrl.tag, isHovering),
           onWorkspacePointerScroll: handleWorkspacePointerScroll,
+          globalToCanvas: globalToCanvas,
         );
         
         if (isMaximize) ctrl.toggleMaximize(screenSize, true);
@@ -693,7 +717,7 @@ class MdiController extends ChangeNotifier {
 
   void startDrag(ResizeableWindowController window, PointerDownEvent event) {
     _draggedWindow = window;
-    _dragPointerStart = event.position;
+    _dragPointerStart = globalToCanvas(event.position);
     _dragWindowStart = Offset(window.x, window.y);
     window.dragOffsetNotifier.value = Offset.zero;
     bringToFront(window.tag, focus: true);
@@ -708,7 +732,7 @@ class MdiController extends ChangeNotifier {
     _resizedWindow = window;
     _resizedSide = side;
     _resizedCorner = corner;
-    _resizePointerStart = event.position;
+    _resizePointerStart = globalToCanvas(event.position);
     _resizeWindowStartRect = Rect.fromLTWH(window.x, window.y, window.currentWidth, window.currentHeight);
     bringToFront(window.tag, focus: true);
   }
@@ -716,14 +740,16 @@ class MdiController extends ChangeNotifier {
   void onPointerMove(PointerMoveEvent event) {
     if (_draggedWindow != null) {
       if (_draggedWindow!.isMaximized) return;
-      final delta = event.position - _dragPointerStart!;
+      final currentPos = globalToCanvas(event.position);
+      final delta = currentPos - _dragPointerStart!;
       _draggedWindow!.updatePosition(
         (_dragWindowStart!.dx + delta.dx).clamp(0.0, double.infinity),
         (_dragWindowStart!.dy + delta.dy).clamp(0.0, double.infinity),
       );
     } else if (_resizedWindow != null) {
       if (_resizedWindow!.isMaximized) return;
-      final delta = event.position - _resizePointerStart!;
+      final currentPos = globalToCanvas(event.position);
+      final delta = currentPos - _resizePointerStart!;
       final r = _resizeWindowStartRect!;
 
       double newX = r.left;
@@ -735,18 +761,22 @@ class MdiController extends ChangeNotifier {
         switch (_resizedSide!) {
           case EdgeSide.right:
             newW = (r.width + delta.dx).clamp(_resizedWindow!.minWidth, double.infinity);
+            break;
           case EdgeSide.left:
             final maxDeltaX = r.width - _resizedWindow!.minWidth;
             final dx = delta.dx.clamp(-double.infinity, maxDeltaX);
             newX = r.left + dx;
             newW = r.width - dx;
+            break;
           case EdgeSide.top:
             final maxDeltaY = r.height - _resizedWindow!.minHeight;
             final dy = delta.dy.clamp(-double.infinity, maxDeltaY);
             newY = r.top + dy;
             newH = r.height - dy;
+            break;
           case EdgeSide.bottom:
             newH = (r.height + delta.dy).clamp(_resizedWindow!.minHeight, double.infinity);
+            break;
         }
       } else if (_resizedCorner != null) {
         switch (_resizedCorner!) {
