@@ -13,6 +13,10 @@ class MdiManager extends StatefulWidget {
   final MdiController controller;
   final MdiStyleConfiguration? style;
 
+  /// Optional shortcut configuration to customize or disable keyboard shortcuts.
+  /// When non-null, overrides the controller's [MdiController.shortcuts].
+  final MdiShortcutConfiguration? shortcuts;
+
   /// Optional host-level key event handler (runs before the MDI default
   /// bindings; return `true` to consume the event).
   final bool Function(KeyEvent event)? onKeyEvent;
@@ -21,6 +25,7 @@ class MdiManager extends StatefulWidget {
     super.key,
     required this.controller,
     this.style,
+    this.shortcuts,
     this.onKeyEvent,
   });
 
@@ -32,7 +37,18 @@ class _MdiManagerState extends State<MdiManager> {
   @override
   void initState() {
     super.initState();
+    if (widget.shortcuts != null) {
+      widget.controller.shortcuts = widget.shortcuts!;
+    }
     widget.controller.addListener(_rebuild);
+  }
+
+  @override
+  void didUpdateWidget(MdiManager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.shortcuts != null && widget.shortcuts != oldWidget.shortcuts) {
+      widget.controller.shortcuts = widget.shortcuts!;
+    }
   }
 
   @override
@@ -60,6 +76,9 @@ class _MdiManagerState extends State<MdiManager> {
         onKeyEvent: (_, event) {
           if (widget.onKeyEvent?.call(event) ?? false) {
             return KeyEventResult.handled;
+          }
+          if (widget.shortcuts != null) {
+            ctrl.shortcuts = widget.shortcuts!;
           }
           return ctrl.onKeyEvent(event)
               ? KeyEventResult.handled

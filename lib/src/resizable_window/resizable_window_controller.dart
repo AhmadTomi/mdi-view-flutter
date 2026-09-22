@@ -437,34 +437,42 @@ class ResizeableWindowController extends ChangeNotifier {
 
   // ── Keyboard window positioning ───────────────────────────────────────────
 
-  void moveLeft() {
+  void moveLeft({double? stepX, double? stepY}) {
     if (isMaximized) return;
-    x = max(0.0, _snap(x - minWidth, minWidth));
-    y = max(0.0, _snap(y, minHeight));
+    final dx = stepX ?? minWidth;
+    final dy = stepY ?? minHeight;
+    x = max(0.0, _snap(x - dx, dx));
+    y = max(0.0, _snap(y, dy));
     notifyListeners();
     positionChangeAction();
   }
 
-  void moveRight() {
+  void moveRight({double? stepX, double? stepY}) {
     if (isMaximized) return;
-    x = max(0.0, _snap(x + minWidth, minWidth));
-    y = max(0.0, _snap(y, minHeight));
+    final dx = stepX ?? minWidth;
+    final dy = stepY ?? minHeight;
+    x = max(0.0, _snap(x + dx, dx));
+    y = max(0.0, _snap(y, dy));
     notifyListeners();
     positionChangeAction();
   }
 
-  void moveUp() {
+  void moveUp({double? stepX, double? stepY}) {
     if (isMaximized) return;
-    y = max(0.0, _snap(y - minHeight, minHeight));
-    x = max(0.0, _snap(x, minWidth));
+    final dx = stepX ?? minWidth;
+    final dy = stepY ?? minHeight;
+    y = max(0.0, _snap(y - dy, dy));
+    x = max(0.0, _snap(x, dx));
     notifyListeners();
     positionChangeAction();
   }
 
-  void moveDown() {
+  void moveDown({double? stepX, double? stepY}) {
     if (isMaximized) return;
-    y = max(0.0, _snap(y + minHeight, minHeight));
-    x = max(0.0, _snap(x, minWidth));
+    final dx = stepX ?? minWidth;
+    final dy = stepY ?? minHeight;
+    y = max(0.0, _snap(y + dy, dy));
+    x = max(0.0, _snap(x, dx));
     notifyListeners();
     positionChangeAction();
   }

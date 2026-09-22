@@ -43,6 +43,14 @@ class MdiController extends ChangeNotifier {
   bool isMaximize = false;
   bool hasFocus = false;
 
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+
+  MdiShortcutConfiguration shortcuts;
+
+  MdiController({
+    MdiShortcutConfiguration? shortcuts,
+  }) : shortcuts = shortcuts ?? MdiShortcutConfiguration.defaults;
+
   // ── Scroll controllers ────────────────────────────────────────────────────
 
   final ScrollController horizontalController = ScrollController();
@@ -155,88 +163,58 @@ class MdiController extends ChangeNotifier {
 
   /// Returns `true` if the event was consumed.
   bool onKeyEvent(KeyEvent event) {
-    if (event is! KeyDownEvent) return false;
+    if (!shortcuts.enabled) return false;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
 
-    final key = event.logicalKey;
-
-    if (kIsWeb) {
-      // Web specific shortcut: Alt + W to close active window
-      if (HardwareKeyboard.instance.isAltPressed && key == LogicalKeyboardKey.keyW) {
-        removeFrontWindow();
-        return true;
-      }
-
-      // Web specific shortcuts: Ctrl + . (Period) / Ctrl + , (Comma) to cycle focus
-      if (HardwareKeyboard.instance.isControlPressed) {
-        if (key == LogicalKeyboardKey.period) {
-          moveFocusNext();
-          return true;
-        } else if (key == LogicalKeyboardKey.comma) {
-          moveFocusPrevious();
+    bool matches(List<ShortcutActivator> activators) {
+      for (final a in activators) {
+        if (a.accepts(event, HardwareKeyboard.instance)) {
           return true;
         }
       }
-    } else {
-      // Desktop / Native specific shortcuts
-      if (HardwareKeyboard.instance.isControlPressed) {
-        // Ctrl + Tab -> cycle focus
-        if (key == LogicalKeyboardKey.tab) {
-          if (HardwareKeyboard.instance.isShiftPressed) {
-            moveFocusPrevious();
-          } else {
-            moveFocusNext();
-          }
-          return true;
-        }
-
-        // Ctrl + W or Ctrl + F4 -> close active window
-        if (key == LogicalKeyboardKey.keyW || key == LogicalKeyboardKey.f4) {
-          removeFrontWindow();
-          return true;
-        }
-      }
-    }
-
-    if (!HardwareKeyboard.instance.isControlPressed ||
-        !HardwareKeyboard.instance.isAltPressed) {
       return false;
     }
 
-    if (HardwareKeyboard.instance.isShiftPressed) {
-      // Ctrl+Alt+Shift+Arrow → move front window by grid step.
-      final w = frontWindow;
-      if (w == null) return false;
-
-      // Fix: Execute the move method, then return true on the next line.
-      if (key == LogicalKeyboardKey.arrowRight) {
-        w.moveRight();
+    // 1. Window movement
+    final w = frontWindow;
+    if (w != null) {
+      if (matches(shortcuts.moveLeft)) {
+        w.moveLeft(stepX: shortcuts.moveStepX, stepY: shortcuts.moveStepY);
         return true;
       }
-      if (key == LogicalKeyboardKey.arrowLeft) {
-        w.moveLeft();
+      if (matches(shortcuts.moveRight)) {
+        w.moveRight(stepX: shortcuts.moveStepX, stepY: shortcuts.moveStepY);
         return true;
       }
-      if (key == LogicalKeyboardKey.arrowUp) {
-        w.moveUp();
+      if (matches(shortcuts.moveUp)) {
+        w.moveUp(stepX: shortcuts.moveStepX, stepY: shortcuts.moveStepY);
         return true;
       }
-      if (key == LogicalKeyboardKey.arrowDown) {
-        w.moveDown();
+      if (matches(shortcuts.moveDown)) {
+        w.moveDown(stepX: shortcuts.moveStepX, stepY: shortcuts.moveStepY);
         return true;
       }
-
-      return false;
     }
 
-    // Ctrl+Alt+Arrow → cycle focus.
-    if (key == LogicalKeyboardKey.arrowRight ||
-        key == LogicalKeyboardKey.arrowUp) {
-      moveFocusNext();
+    // 2. Toggle maximize
+    if (matches(shortcuts.toggleMaximize)) {
+      toggleMaximize();
       return true;
     }
-    if (key == LogicalKeyboardKey.arrowLeft ||
-        key == LogicalKeyboardKey.arrowDown) {
+
+    // 3. Close active window
+    if (matches(shortcuts.closeWindow)) {
+      removeFrontWindow();
+      return true;
+    }
+
+    // 4. Cycle focus
+    if (matches(shortcuts.focusPrevious)) {
       moveFocusPrevious();
+      return true;
+    }
+    if (matches(shortcuts.focusNext)) {
+      moveFocusNext();
       return true;
     }
 

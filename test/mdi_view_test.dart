@@ -2475,4 +2475,254 @@ void main() {
       controller.dispose();
     });
   });
+
+  group('MdiShortcutConfiguration Tests', () {
+    test('Default values and presets are populated correctly', () {
+      final config = MdiShortcutConfiguration.desktop;
+      expect(config.enabled, isTrue);
+      expect(config.closeWindow.isNotEmpty, isTrue);
+      expect(config.focusNext.isNotEmpty, isTrue);
+      expect(config.focusPrevious.isNotEmpty, isTrue);
+      expect(config.moveLeft.isNotEmpty, isTrue);
+      expect(config.moveRight.isNotEmpty, isTrue);
+      expect(config.moveUp.isNotEmpty, isTrue);
+      expect(config.moveDown.isNotEmpty, isTrue);
+      expect(config.moveStepX, isNull);
+      expect(config.moveStepY, isNull);
+
+      final none = MdiShortcutConfiguration.none;
+      expect(none.enabled, isFalse);
+      expect(none.closeWindow.isEmpty, isTrue);
+      expect(none.moveRight.isEmpty, isTrue);
+
+      final web = MdiShortcutConfiguration.web;
+      expect(web.enabled, isTrue);
+      expect(web.closeWindow.isNotEmpty, isTrue);
+    });
+
+    test('copyWith properly overrides fields while preserving others', () {
+      final initial = MdiShortcutConfiguration.desktop;
+      final modified = initial.copyWith(
+        moveStepX: 75.0,
+        moveStepY: 85.0,
+        enabled: false,
+        closeWindow: const [SingleActivator(LogicalKeyboardKey.keyQ, control: true)],
+      );
+
+      expect(modified.enabled, isFalse);
+      expect(modified.moveStepX, 75.0);
+      expect(modified.moveStepY, 85.0);
+      expect(modified.closeWindow.length, 1);
+      expect(modified.focusNext, equals(initial.focusNext));
+      expect(modified.moveLeft, equals(initial.moveLeft));
+
+      // Test clearing moveStepX back to null
+      final reset = modified.copyWith(moveStepX: null);
+      expect(reset.moveStepX, isNull);
+      expect(reset.moveStepY, 85.0);
+    });
+
+    test('Equality and hashCode work as expected', () {
+      final a = MdiShortcutConfiguration.desktop;
+      final b = MdiShortcutConfiguration.desktop;
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+
+      final c = a.copyWith(enabled: false);
+      expect(a, isNot(equals(c)));
+    });
+
+    testWidgets('Default shortcuts: Ctrl+Alt+Shift+Arrow moves window by minWidth/minHeight', (tester) async {
+      final controller = MdiController();
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          id: '1',
+          title: 'W1',
+          x: 0,
+          y: 0,
+          minWidth: 100,
+          minHeight: 50,
+        ),
+        child: (_) => const SizedBox(),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: MdiManager(controller: controller),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(w1.x, 0.0);
+      expect(w1.y, 0.0);
+
+      // Move right: Ctrl + Alt + Shift + ArrowRight
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+
+      expect(w1.x, 100.0);
+      expect(w1.y, 0.0);
+
+      // Move down: Ctrl + Alt + Shift + ArrowDown
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      expect(w1.x, 100.0);
+      expect(w1.y, 50.0);
+
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      controller.dispose();
+    });
+
+    testWidgets('Custom moveStepX and moveStepY override default grid step distance', (tester) async {
+      final controller = MdiController(
+        shortcuts: MdiShortcutConfiguration.desktop.copyWith(
+          moveStepX: 42.0,
+          moveStepY: 33.0,
+        ),
+      );
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          id: '1',
+          title: 'W1',
+          x: 0,
+          y: 0,
+          minWidth: 100,
+          minHeight: 50,
+        ),
+        child: (_) => const SizedBox(),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: MdiManager(controller: controller),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+
+      expect(w1.x, 42.0);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      expect(w1.y, 33.0);
+
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiShortcutConfiguration.none disables all shortcuts', (tester) async {
+      final controller = MdiController(
+        shortcuts: MdiShortcutConfiguration.none,
+      );
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          id: '1',
+          title: 'W1',
+          x: 0,
+          y: 0,
+          minWidth: 100,
+          minHeight: 50,
+        ),
+        child: (_) => const SizedBox(),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: MdiManager(controller: controller),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Attempt to move window
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+
+      expect(w1.x, 0.0); // Did not move
+
+      // Attempt to close window (Ctrl+W)
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      expect(controller.windows.length, 1); // Not closed
+
+      controller.dispose();
+    });
+
+    testWidgets('Custom shortcut overrides: Alt+Arrow moves, Ctrl+Q closes', (tester) async {
+      final customShortcuts = MdiShortcutConfiguration(
+        moveRight: const [SingleActivator(LogicalKeyboardKey.arrowRight, alt: true)],
+        closeWindow: const [SingleActivator(LogicalKeyboardKey.keyQ, control: true)],
+        moveStepX: 60.0,
+      );
+
+      final controller = MdiController();
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(
+          id: '1',
+          title: 'W1',
+          x: 0,
+          y: 0,
+          minWidth: 100,
+          minHeight: 50,
+        ),
+        child: (_) => const SizedBox(),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: MdiManager(
+            controller: controller,
+            shortcuts: customShortcuts,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Test custom move: Alt + ArrowRight
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pumpAndSettle();
+
+      expect(w1.x, 60.0);
+
+      // Old shortcut Ctrl+W should NOT close
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+      await tester.pumpAndSettle();
+      expect(controller.windows.length, 1);
+
+      // New custom shortcut Ctrl+Q should close
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyQ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(controller.windows.isEmpty, isTrue);
+
+      controller.dispose();
+    });
+  });
 }

@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'src/mdi_tab/mdi_tab.dart';
 
 part 'src/mdi_style.dart';
+part 'src/mdi_shortcut.dart';
 part 'src/parameter_window.dart';
 part 'src/mdi_manager/mdi_manager.dart';
 part 'src/mdi_manager/mdi_controller.dart';
