@@ -29,7 +29,7 @@ Add `mdi_view` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  mdi_view: ^0.0.9
+  mdi_view: ^0.0.10
 ```
 
 Run `flutter pub get` to install.
@@ -106,6 +106,61 @@ void openNewWindow() {
   );
 }
 ```
+
+---
+
+## Window Dimensions & Dynamic Sizing (`MdiDimensions`)
+
+You can customize default window sizes (`defaultWidth`, `defaultHeight`, `defaultMinWidth`, `defaultMinHeight`) dynamically across your application.
+
+### 1. Global Dynamic Defaults (Outside Controller)
+Configure defaults once at app startup and access them anywhere in your app without needing an `MdiController` or `BuildContext`:
+
+```dart
+void main() {
+  // Configure dynamic defaults globally:
+  MdiDimensions.global = const MdiDimensions(
+    defaultWidth: 500.0,
+    defaultHeight: 600.0,
+    defaultMinWidth: 350.0,
+    defaultMinHeight: 200.0,
+  );
+
+  runApp(const MyApp());
+}
+
+// Read anywhere outside the controller:
+final double width = MdiDimensions.global.defaultWidth; // 500.0
+```
+
+### 2. Per-Controller Dynamic Dimensions
+Pass custom dimensions to `MdiController` so all windows managed by that controller inherit them:
+
+```dart
+final controller = MdiController(
+  dimensions: const MdiDimensions(
+    defaultWidth: 550.0,
+    defaultHeight: 650.0,
+    defaultMinWidth: 400.0,
+    defaultMinHeight: 250.0,
+  ),
+);
+
+// Windows opened without explicit sizes automatically use 550x650:
+controller.addWindow(
+  parameter: const ParameterWindow(title: 'My Window', id: '1'),
+  child: (c) => const MyWidget(),
+);
+```
+
+### 3. Standard Fallback Constants
+If unconfigured, the package falls back to standard dimensions (`382x474`, min `382x119`):
+```dart
+final fallbackWidth = MdiDimensions.standard.defaultWidth; // 382.0
+```
+
+> [!NOTE]
+> Legacy static constants `ParameterWindow.defaultWidth`, `defaultHeight`, `defaultMinWidth`, and `defaultMinHeight` are deprecated and dynamically delegate to `MdiDimensions.global` for 100% backward compatibility.
 
 ---
 

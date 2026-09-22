@@ -47,9 +47,15 @@ class MdiController extends ChangeNotifier {
 
   MdiShortcutConfiguration shortcuts;
 
+  // ── Dimensions ────────────────────────────────────────────────────────────
+
+  MdiDimensions dimensions;
+
   MdiController({
     MdiShortcutConfiguration? shortcuts,
-  }) : shortcuts = shortcuts ?? MdiShortcutConfiguration.defaults;
+    MdiDimensions? dimensions,
+  })  : shortcuts = shortcuts ?? MdiShortcutConfiguration.defaults,
+        dimensions = dimensions ?? MdiDimensions.global;
 
   // ── Scroll controllers ────────────────────────────────────────────────────
 
@@ -231,6 +237,8 @@ class MdiController extends ChangeNotifier {
     required Widget Function(ResizeableWindowController) child,
     bool notify = true,
   }) {
+    parameter = parameter.resolveWith(dimensions);
+
     final tag = parameter.tag;
     if (_windows.containsKey(tag)) {
       throw StateError('MDI window tag "$tag" already exists.');
@@ -520,13 +528,13 @@ class MdiController extends ChangeNotifier {
     if (x < visibleLeft) {
       targetX = x;
     } else if (x > visibleRight) {
-      targetX = x - screenSize.width + ParameterWindow.defaultMinWidth;
+      targetX = x - screenSize.width + dimensions.defaultMinWidth;
     }
 
     if (y < visibleTop) {
       targetY = y;
     } else if (y > visibleBottom) {
-      targetY = y - screenSize.height + ParameterWindow.defaultMinHeight;
+      targetY = y - screenSize.height + dimensions.defaultMinHeight;
     }
 
     // Local helper to handle the Future<void> compilation fix and DRY principle

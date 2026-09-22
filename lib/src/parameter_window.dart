@@ -14,36 +14,59 @@ class ParameterWindow {
   final String id;
   final String title;
 
-  // ── Geometry ──────────────────────────────────────────────────────────────
+  // ── Geometry (internal storage) ───────────────────────────────────────────
 
-  final double minWidth;
-  final double minHeight;
-  final double currentWidth;
-  final double currentHeight;
+  final double? _minWidth;
+  final double? _minHeight;
+  final double? _currentWidth;
+  final double? _currentHeight;
   final double x;
   final double y;
+
+  /// Optional per-window dimensions configuration.
+  /// When omitted, falls back to [MdiDimensions.global] (which defaults to [MdiDimensions.standard]).
+  final MdiDimensions? dimensions;
+
+  // ── Geometry (resolved getters) ───────────────────────────────────────────
+
+  double get minWidth =>
+      _minWidth ?? dimensions?.defaultMinWidth ?? MdiDimensions.global.defaultMinWidth;
+  double get minHeight =>
+      _minHeight ?? dimensions?.defaultMinHeight ?? MdiDimensions.global.defaultMinHeight;
+  double get currentWidth =>
+      _currentWidth ?? dimensions?.defaultWidth ?? MdiDimensions.global.defaultWidth;
+  double get currentHeight =>
+      _currentHeight ?? dimensions?.defaultHeight ?? MdiDimensions.global.defaultHeight;
 
   // ── Arbitrary key/value payload ───────────────────────────────────────────
 
   final Map<String, dynamic> argument;
 
-  // ── Grid defaults (configurable at the class level) ───────────────────────
+  // ── Legacy defaults (deprecated: use MdiDimensions) ───────────────────────
 
-  static const double defaultWidth = 382.0;
-  static const double defaultHeight = 474.0;
-  static const double defaultMinWidth = defaultWidth;
+  @Deprecated(
+    'Use MdiDimensions.global.defaultWidth or MdiDimensions.standard.defaultWidth instead. '
+    'Will be removed in a future major version.',
+  )
+  static double get defaultWidth => MdiDimensions.global.defaultWidth;
 
-  /// Quarter-height grid unit used for keyboard movement and resize/drag
-  /// snapping.
-  ///
-  /// `defaultHeight / 4` is `118.5` — a fractional logical pixel. Snapping
-  /// to that grid lands `y`/`currentHeight` on a half-pixel boundary every
-  /// other step, which is invisible on a perfect 2x Retina display (0.5
-  /// logical px → 1 device px) but renders as a blurry, anti-aliased edge
-  /// on a 1x display — a common setup when a Mac drives an external,
-  /// non-Retina monitor. Rounded once here so every consumer shares a
-  /// single whole-pixel grid value instead of recomputing the fraction.
-  static const double defaultMinHeight = 119.0;
+  @Deprecated(
+    'Use MdiDimensions.global.defaultHeight or MdiDimensions.standard.defaultHeight instead. '
+    'Will be removed in a future major version.',
+  )
+  static double get defaultHeight => MdiDimensions.global.defaultHeight;
+
+  @Deprecated(
+    'Use MdiDimensions.global.defaultMinWidth or MdiDimensions.standard.defaultMinWidth instead. '
+    'Will be removed in a future major version.',
+  )
+  static double get defaultMinWidth => MdiDimensions.global.defaultMinWidth;
+
+  @Deprecated(
+    'Use MdiDimensions.global.defaultMinHeight or MdiDimensions.standard.defaultMinHeight instead. '
+    'Will be removed in a future major version.',
+  )
+  static double get defaultMinHeight => MdiDimensions.global.defaultMinHeight;
 
   // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -51,16 +74,28 @@ class ParameterWindow {
     this.id = 'Primary.mdi',
     required this.title,
     this.argument = const {},
+    this.dimensions,
     double? minWidth,
     double? minHeight,
     double? currentWidth,
     double? currentHeight,
     this.x = _kUnsetPosition,
     this.y = _kUnsetPosition,
-  })  : minWidth = minWidth ?? defaultWidth,
-        minHeight = minHeight ?? defaultMinHeight,
-        currentWidth = currentWidth ?? defaultWidth,
-        currentHeight = currentHeight ?? defaultHeight;
+  })  : _minWidth = minWidth,
+        _minHeight = minHeight,
+        _currentWidth = currentWidth,
+        _currentHeight = currentHeight;
+
+  /// Resolves any unspecified dimension fields against [parentDimensions].
+  ParameterWindow resolveWith(MdiDimensions parentDimensions) {
+    return copyWith(
+      dimensions: dimensions ?? parentDimensions,
+      minWidth: _minWidth ?? parentDimensions.defaultMinWidth,
+      minHeight: _minHeight ?? parentDimensions.defaultMinHeight,
+      currentWidth: _currentWidth ?? parentDimensions.defaultWidth,
+      currentHeight: _currentHeight ?? parentDimensions.defaultHeight,
+    );
+  }
 
   // ── Derived helpers ───────────────────────────────────────────────────────
 
@@ -77,13 +112,15 @@ class ParameterWindow {
 
   // ── Grid helpers ──────────────────────────────────────────────────────────
 
-  static int getWidthScale(double width) {
-    final result = (width + 6) ~/ defaultWidth;
+  static int getWidthScale(double width, [MdiDimensions? dimensions]) {
+    final dWidth = dimensions?.defaultWidth ?? MdiDimensions.global.defaultWidth;
+    final result = (width + 6) ~/ dWidth;
     return result < 1 ? 1 : result;
   }
 
-  static int getHeightScale(double height) {
-    final result = (height + 6) ~/ defaultHeight;
+  static int getHeightScale(double height, [MdiDimensions? dimensions]) {
+    final dHeight = dimensions?.defaultHeight ?? MdiDimensions.global.defaultHeight;
+    final result = (height + 6) ~/ dHeight;
     return result < 1 ? 0 : result;
   }
 
@@ -111,6 +148,7 @@ class ParameterWindow {
     String? id,
     String? title,
     Map<String, dynamic>? argument,
+    MdiDimensions? dimensions,
     double? minHeight,
     double? minWidth,
     double? currentWidth,
@@ -122,10 +160,11 @@ class ParameterWindow {
       id: id ?? this.id,
       title: title ?? this.title,
       argument: argument ?? this.argument,
-      minHeight: minHeight ?? this.minHeight,
-      minWidth: minWidth ?? this.minWidth,
-      currentWidth: currentWidth ?? this.currentWidth,
-      currentHeight: currentHeight ?? this.currentHeight,
+      dimensions: dimensions ?? this.dimensions,
+      minHeight: minHeight ?? _minHeight,
+      minWidth: minWidth ?? _minWidth,
+      currentWidth: currentWidth ?? _currentWidth,
+      currentHeight: currentHeight ?? _currentHeight,
       x: x ?? this.x,
       y: y ?? this.y,
     );
@@ -138,7 +177,7 @@ class ParameterWindow {
     if (identical(this, other)) return true;
 
     // Toggle this variable to enable or disable all debug prints for this function
-    const bool enableDebugPrint = false;
+    bool enableDebugPrint = false;
 
     // Local helper function to keep the checks clean and handle the prefix
     void logDebug(String message) {

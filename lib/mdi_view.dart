@@ -9,6 +9,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'src/mdi_tab/mdi_tab.dart';
 
+part 'src/mdi_dimensions.dart';
 part 'src/mdi_style.dart';
 part 'src/mdi_shortcut.dart';
 part 'src/parameter_window.dart';
