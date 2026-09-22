@@ -30,13 +30,13 @@ class ParameterWindow {
   // ── Geometry (resolved getters) ───────────────────────────────────────────
 
   double get minWidth =>
-      _minWidth ?? dimensions?.defaultMinWidth ?? MdiDimensions.global.defaultMinWidth;
+      _minWidth ?? dimensions?.defaultMinWidth ?? MdiDimensions.minWidth;
   double get minHeight =>
-      _minHeight ?? dimensions?.defaultMinHeight ?? MdiDimensions.global.defaultMinHeight;
+      _minHeight ?? dimensions?.defaultMinHeight ?? MdiDimensions.minHeight;
   double get currentWidth =>
-      _currentWidth ?? dimensions?.defaultWidth ?? MdiDimensions.global.defaultWidth;
+      _currentWidth ?? dimensions?.defaultWidth ?? MdiDimensions.width;
   double get currentHeight =>
-      _currentHeight ?? dimensions?.defaultHeight ?? MdiDimensions.global.defaultHeight;
+      _currentHeight ?? dimensions?.defaultHeight ?? MdiDimensions.height;
 
   // ── Arbitrary key/value payload ───────────────────────────────────────────
 
@@ -45,28 +45,28 @@ class ParameterWindow {
   // ── Legacy defaults (deprecated: use MdiDimensions) ───────────────────────
 
   @Deprecated(
-    'Use MdiDimensions.global.defaultWidth or MdiDimensions.standard.defaultWidth instead. '
+    'Use MdiDimensions.width or MdiDimensions.defaults.defaultWidth instead. '
     'Will be removed in a future major version.',
   )
-  static double get defaultWidth => MdiDimensions.global.defaultWidth;
+  static double get defaultWidth => MdiDimensions.width;
 
   @Deprecated(
-    'Use MdiDimensions.global.defaultHeight or MdiDimensions.standard.defaultHeight instead. '
+    'Use MdiDimensions.height or MdiDimensions.defaults.defaultHeight instead. '
     'Will be removed in a future major version.',
   )
-  static double get defaultHeight => MdiDimensions.global.defaultHeight;
+  static double get defaultHeight => MdiDimensions.height;
 
   @Deprecated(
-    'Use MdiDimensions.global.defaultMinWidth or MdiDimensions.standard.defaultMinWidth instead. '
+    'Use MdiDimensions.minWidth or MdiDimensions.defaults.defaultMinWidth instead. '
     'Will be removed in a future major version.',
   )
-  static double get defaultMinWidth => MdiDimensions.global.defaultMinWidth;
+  static double get defaultMinWidth => MdiDimensions.minWidth;
 
   @Deprecated(
-    'Use MdiDimensions.global.defaultMinHeight or MdiDimensions.standard.defaultMinHeight instead. '
+    'Use MdiDimensions.minHeight or MdiDimensions.defaults.defaultMinHeight instead. '
     'Will be removed in a future major version.',
   )
-  static double get defaultMinHeight => MdiDimensions.global.defaultMinHeight;
+  static double get defaultMinHeight => MdiDimensions.minHeight;
 
   // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -113,13 +113,13 @@ class ParameterWindow {
   // ── Grid helpers ──────────────────────────────────────────────────────────
 
   static int getWidthScale(double width, [MdiDimensions? dimensions]) {
-    final dWidth = dimensions?.defaultWidth ?? MdiDimensions.global.defaultWidth;
+    final dWidth = dimensions?.defaultWidth ?? MdiDimensions.width;
     final result = (width + 6) ~/ dWidth;
     return result < 1 ? 1 : result;
   }
 
   static int getHeightScale(double height, [MdiDimensions? dimensions]) {
-    final dHeight = dimensions?.defaultHeight ?? MdiDimensions.global.defaultHeight;
+    final dHeight = dimensions?.defaultHeight ?? MdiDimensions.height;
     final result = (height + 6) ~/ dHeight;
     return result < 1 ? 0 : result;
   }

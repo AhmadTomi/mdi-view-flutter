@@ -111,26 +111,29 @@ void openNewWindow() {
 
 ## Window Dimensions & Dynamic Sizing (`MdiDimensions`)
 
-You can customize default window sizes (`defaultWidth`, `defaultHeight`, `defaultMinWidth`, `defaultMinHeight`) dynamically across your application.
+You can customize default window sizes (`width`, `height`, `minWidth`, `minHeight`) dynamically across your application.
 
-### 1. Global Dynamic Defaults (Outside Controller)
-Configure defaults once at app startup and access them anywhere in your app without needing an `MdiController` or `BuildContext`:
+### 1. Direct Static Access (Outside Controller)
+Read or modify active window dimensions directly anywhere in your app without needing an `MdiController` or `BuildContext`:
 
 ```dart
-void main() {
-  // Configure dynamic defaults globally:
-  MdiDimensions.global = const MdiDimensions(
-    defaultWidth: 500.0,
-    defaultHeight: 600.0,
-    defaultMinWidth: 350.0,
-    defaultMinHeight: 200.0,
-  );
+// Read active dimensions directly:
+final double h = MdiDimensions.height; // 474.0
+final double w = MdiDimensions.width;  // 382.0
 
-  runApp(const MyApp());
-}
+// Modify active dimensions directly:
+MdiDimensions.width = 500.0;
+MdiDimensions.height = 600.0;
+MdiDimensions.minWidth = 350.0;
+MdiDimensions.minHeight = 200.0;
 
-// Read anywhere outside the controller:
-final double width = MdiDimensions.global.defaultWidth; // 500.0
+// Or set an entire dimensions profile:
+MdiDimensions.global = const MdiDimensions(
+  width: 500.0,
+  height: 600.0,
+  minWidth: 350.0,
+  minHeight: 200.0,
+);
 ```
 
 ### 2. Per-Controller Dynamic Dimensions
@@ -138,12 +141,12 @@ Pass custom dimensions to `MdiController` so all windows managed by that control
 
 ```dart
 final controller = MdiController(
-  dimensions: const MdiDimensions(
-    defaultWidth: 550.0,
-    defaultHeight: 650.0,
-    defaultMinWidth: 400.0,
-    defaultMinHeight: 250.0,
+  dimensions: MdiDimensions(
+    width: 550.0,
+    height: 650.0,
+    minHeight: MdiDimensions.height / 2,
   ),
+  shortcuts: MdiShortcutConfiguration.desktop,
 );
 
 // Windows opened without explicit sizes automatically use 550x650:
@@ -153,14 +156,14 @@ controller.addWindow(
 );
 ```
 
-### 3. Standard Fallback Constants
-If unconfigured, the package falls back to standard dimensions (`382x474`, min `382x119`):
+### 3. Defaults Fallback Reference
+If unconfigured, the package falls back to `MdiDimensions.defaults` (`382x474`, min `382x119`):
 ```dart
-final fallbackWidth = MdiDimensions.standard.defaultWidth; // 382.0
+final fallbackWidth = MdiDimensions.defaults.defaultWidth; // 382.0
 ```
 
 > [!NOTE]
-> Legacy static constants `ParameterWindow.defaultWidth`, `defaultHeight`, `defaultMinWidth`, and `defaultMinHeight` are deprecated and dynamically delegate to `MdiDimensions.global` for 100% backward compatibility.
+> Legacy static constants `ParameterWindow.defaultWidth`, `defaultHeight`, `defaultMinWidth`, and `defaultMinHeight` are deprecated and dynamically delegate to `MdiDimensions.width`, `height`, etc. for 100% backward compatibility.
 
 ---
 

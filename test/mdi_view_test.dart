@@ -2731,21 +2731,24 @@ void main() {
       MdiDimensions.resetGlobal();
     });
 
-    test('Standard fallback constants match 382x474 and 382x119', () {
-      expect(MdiDimensions.standard.defaultWidth, 382.0);
-      expect(MdiDimensions.standard.defaultHeight, 474.0);
-      expect(MdiDimensions.standard.defaultMinWidth, 382.0);
-      expect(MdiDimensions.standard.defaultMinHeight, 119.0);
+    test('Defaults fallback constants match 382x474 and 382x119', () {
+      expect(MdiDimensions.defaults.defaultWidth, 382.0);
+      expect(MdiDimensions.defaults.defaultHeight, 474.0);
+      expect(MdiDimensions.defaults.defaultMinWidth, 382.0);
+      expect(MdiDimensions.defaults.defaultMinHeight, 119.0);
+
+      // Deprecated standard alias points to defaults
+      expect(MdiDimensions.standard, MdiDimensions.defaults);
     });
 
     test('MdiDimensions copyWith and equality work correctly', () {
       const original = MdiDimensions(
-        defaultWidth: 400,
-        defaultHeight: 500,
-        defaultMinWidth: 300,
-        defaultMinHeight: 150,
+        width: 400,
+        height: 500,
+        minWidth: 300,
+        minHeight: 150,
       );
-      final modified = original.copyWith(defaultWidth: 450);
+      final modified = original.copyWith(width: 450);
 
       expect(modified.defaultWidth, 450.0);
       expect(modified.defaultHeight, 500.0);
@@ -2757,60 +2760,59 @@ void main() {
       expect(original == modified, isFalse);
     });
 
-    test('MdiDimensions.global allows configuring dynamic defaults outside controller', () {
-      // 1. Initial state falls back to standard
-      expect(MdiDimensions.global.defaultWidth, 382.0);
-      expect(ParameterWindow.defaultWidth, 382.0);
+    test('Direct static properties MdiDimensions.width and height work cleanly', () {
+      // Initial state
+      expect(MdiDimensions.width, 382.0);
+      expect(MdiDimensions.height, 474.0);
+      expect(MdiDimensions.minWidth, 382.0);
+      expect(MdiDimensions.minHeight, 119.0);
 
-      // 2. Configure global dynamic dimensions outside controller
-      MdiDimensions.global = const MdiDimensions(
-        defaultWidth: 500.0,
-        defaultHeight: 600.0,
-        defaultMinWidth: 350.0,
-        defaultMinHeight: 200.0,
-      );
+      // Direct assignment at class level
+      MdiDimensions.width = 500.0;
+      MdiDimensions.height = 600.0;
+      MdiDimensions.minWidth = 350.0;
+      MdiDimensions.minHeight = 200.0;
 
-      // 3. Read directly outside controller
-      expect(MdiDimensions.global.defaultWidth, 500.0);
-      expect(MdiDimensions.global.defaultHeight, 600.0);
-      expect(MdiDimensions.global.defaultMinWidth, 350.0);
-      expect(MdiDimensions.global.defaultMinHeight, 200.0);
+      expect(MdiDimensions.width, 500.0);
+      expect(MdiDimensions.height, 600.0);
+      expect(MdiDimensions.minWidth, 350.0);
+      expect(MdiDimensions.minHeight, 200.0);
 
-      // 4. Legacy ParameterWindow getters dynamically reflect the new values
+      // Legacy ParameterWindow getters dynamically reflect the new values
       expect(ParameterWindow.defaultWidth, 500.0);
       expect(ParameterWindow.defaultHeight, 600.0);
       expect(ParameterWindow.defaultMinWidth, 350.0);
       expect(ParameterWindow.defaultMinHeight, 200.0);
 
-      // 5. Windows created without dimensions automatically use the global dynamic dimensions
+      // Windows created without dimensions automatically use the direct values
       const window = ParameterWindow(title: 'Auto Window', id: 'auto-1');
       expect(window.currentWidth, 500.0);
       expect(window.currentHeight, 600.0);
       expect(window.minWidth, 350.0);
       expect(window.minHeight, 200.0);
 
-      // 6. Reset restores standard fallback
+      // Reset restores defaults
       MdiDimensions.resetGlobal();
-      expect(MdiDimensions.global.defaultWidth, 382.0);
-      expect(ParameterWindow.defaultWidth, 382.0);
+      expect(MdiDimensions.width, 382.0);
+      expect(MdiDimensions.height, 474.0);
     });
 
-    test('MdiDimensions.configure updates global dimensions incrementally', () {
-      MdiDimensions.configure(defaultWidth: 420.0);
-      expect(MdiDimensions.global.defaultWidth, 420.0);
-      expect(MdiDimensions.global.defaultHeight, 474.0); // Preserved
+    test('MdiDimensions.configure updates dimensions incrementally', () {
+      MdiDimensions.configure(width: 420.0);
+      expect(MdiDimensions.width, 420.0);
+      expect(MdiDimensions.height, 474.0); // Preserved
 
-      MdiDimensions.configure(defaultHeight: 520.0);
-      expect(MdiDimensions.global.defaultWidth, 420.0); // Preserved
-      expect(MdiDimensions.global.defaultHeight, 520.0);
+      MdiDimensions.configure(height: 520.0);
+      expect(MdiDimensions.width, 420.0); // Preserved
+      expect(MdiDimensions.height, 520.0);
     });
 
     test('MdiController with custom dynamic dimensions resolves windows', () {
       final customDimensions = const MdiDimensions(
-        defaultWidth: 550.0,
-        defaultHeight: 650.0,
-        defaultMinWidth: 400.0,
-        defaultMinHeight: 250.0,
+        width: 550.0,
+        height: 650.0,
+        minWidth: 400.0,
+        minHeight: 250.0,
       );
 
       final controller = MdiController(dimensions: customDimensions);
@@ -2844,7 +2846,7 @@ void main() {
     });
 
     test('ParameterWindow getWidthScale and getHeightScale use dynamic dimensions', () {
-      const custom = MdiDimensions(defaultWidth: 500, defaultHeight: 600);
+      const custom = MdiDimensions(width: 500, height: 600);
 
       // Standard scale
       expect(ParameterWindow.getWidthScale(1000), 2); // 1006 ~/ 382 = 2

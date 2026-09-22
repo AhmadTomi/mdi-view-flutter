@@ -2,12 +2,12 @@
 
 * **Dynamic Window Dimensions (`MdiDimensions`)**:
   - Added `MdiDimensions` immutable configuration to manage `defaultWidth`, `defaultHeight`, `defaultMinWidth`, and `defaultMinHeight`.
-  - Added `MdiDimensions.global` to allow apps to configure dynamic default dimensions once at startup and access them anywhere outside the controller or widget tree.
-  - Added `MdiDimensions.standard` compile-time constant fallback (`382x474`, min `382x119`).
+  - Added direct static properties `MdiDimensions.width`, `MdiDimensions.height`, `MdiDimensions.minWidth`, and `MdiDimensions.minHeight` to read or modify active window dimensions directly anywhere outside the controller or widget tree.
+  - Added `MdiDimensions.defaults` compile-time constant fallback (`382x474`, min `382x119`).
   - Added `dimensions` parameter to `MdiController`, dynamically resolving unspecified window dimensions and auto-scroll target snapping.
   - Added `ParameterWindow.resolveWith(MdiDimensions)` to dynamically inherit parent or controller dimensions.
   - Updated `ParameterWindow.getWidthScale` and `getHeightScale` to support dynamic dimension scaling.
-  - Deprecated legacy static constants `ParameterWindow.defaultWidth`, `defaultHeight`, `defaultMinWidth`, and `defaultMinHeight`, dynamically delegating them to `MdiDimensions.global` for 100% backwards compatibility.
+  - Deprecated legacy static constants `ParameterWindow.defaultWidth`, `defaultHeight`, `defaultMinWidth`, and `defaultMinHeight`, dynamically delegating them to `MdiDimensions.width`, `height`, etc. for 100% backwards compatibility.
 
 ## 0.0.9
 

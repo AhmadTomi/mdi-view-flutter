@@ -2,88 +2,135 @@ part of '../mdi_view.dart';
 
 /// Immutable configuration for window dimensions across the MDI surface.
 ///
-/// Use [MdiDimensions.standard] for out-of-the-box fallback values (382 x 474).
-/// Use [MdiDimensions.global] to configure app-wide dynamic defaults accessible
-/// anywhere outside the controller:
+/// Use [MdiDimensions.defaults] for the out-of-the-box fallback values (382 x 474).
+/// Access or modify active dimensions directly at the class level from anywhere:
 /// ```dart
-/// // Configure globally in main() or app setup:
-/// MdiDimensions.global = const MdiDimensions(
-///   defaultWidth: 500.0,
-///   defaultHeight: 600.0,
-///   defaultMinWidth: 350.0,
-///   defaultMinHeight: 200.0,
-/// );
+/// // Read anywhere in your project without a controller or context:
+/// final h = MdiDimensions.height; // 474.0
+/// final w = MdiDimensions.width;  // 382.0
 ///
-/// // Read anywhere in your project without a controller:
-/// final width = MdiDimensions.global.defaultWidth; // 500.0
+/// // Update anywhere:
+/// MdiDimensions.height = 600.0;
+/// MdiDimensions.width = 500.0;
+///
+/// // Or set an entire dimensions profile:
+/// MdiDimensions.global = const MdiDimensions(width: 500, height: 600);
 /// ```
 @immutable
 class MdiDimensions {
-  /// Default window width in logical pixels.
-  final double defaultWidth;
+  // ── Private standard fallback values ───────────────────────────────────────
 
-  /// Default window height in logical pixels.
-  final double defaultHeight;
+  static const double _kDefaultWidth = 382.0;
+  static const double _kDefaultHeight = 474.0;
+  static const double _kDefaultMinWidth = 382.0;
+  static const double _kDefaultMinHeight = 119.0;
 
-  /// Default minimum window width in logical pixels.
-  final double defaultMinWidth;
+  // ── Standard presets ───────────────────────────────────────────────────────
 
-  /// Default minimum window height in logical pixels.
-  final double defaultMinHeight;
+  /// Standard fallback configuration used when no custom dimensions are set.
+  static const MdiDimensions defaults = MdiDimensions();
 
-  /// Standard fallback constants.
-  static const double kStandardDefaultWidth = 382.0;
-  static const double kStandardDefaultHeight = 474.0;
-  static const double kStandardDefaultMinWidth = 382.0;
-  static const double kStandardDefaultMinHeight = 119.0;
+  /// Deprecated alias for [defaults].
+  @Deprecated('Use MdiDimensions.defaults instead. Will be removed in a future release.')
+  static const MdiDimensions standard = defaults;
 
-  /// Standard fallback configuration used when no dynamic dimensions are set.
-  static const MdiDimensions standard = MdiDimensions();
+  // ── Global dynamic state ───────────────────────────────────────────────────
 
-  /// Global dynamic default dimensions.
+  /// Global active dimensions profile.
   ///
   /// Can be set once at app launch or dynamically updated.
-  /// Falls back to [standard] by default.
-  static MdiDimensions global = standard;
+  /// Defaults to [defaults].
+  static MdiDimensions global = defaults;
 
-  /// Convenience method to reconfigure [global] dimensions.
+  // ── Direct static accessors ────────────────────────────────────────────────
+
+  /// Active default window width in logical pixels.
+  static double get width => global.defaultWidth;
+  static set width(double value) => global = global.copyWith(defaultWidth: value);
+
+  /// Active default window height in logical pixels.
+  static double get height => global.defaultHeight;
+  static set height(double value) => global = global.copyWith(defaultHeight: value);
+
+  /// Active default minimum window width in logical pixels.
+  static double get minWidth => global.defaultMinWidth;
+  static set minWidth(double value) => global = global.copyWith(defaultMinWidth: value);
+
+  /// Active default minimum window height in logical pixels.
+  static double get minHeight => global.defaultMinHeight;
+  static set minHeight(double value) => global = global.copyWith(defaultMinHeight: value);
+
+  /// Convenience method to reconfigure active dimensions.
   static void configure({
+    double? width,
+    double? height,
+    double? minWidth,
+    double? minHeight,
     double? defaultWidth,
     double? defaultHeight,
     double? defaultMinWidth,
     double? defaultMinHeight,
   }) {
     global = global.copyWith(
-      defaultWidth: defaultWidth,
-      defaultHeight: defaultHeight,
-      defaultMinWidth: defaultMinWidth,
-      defaultMinHeight: defaultMinHeight,
+      defaultWidth: width ?? defaultWidth,
+      defaultHeight: height ?? defaultHeight,
+      defaultMinWidth: minWidth ?? defaultMinWidth,
+      defaultMinHeight: minHeight ?? defaultMinHeight,
     );
   }
 
-  /// Resets [global] dimensions back to [standard] (useful for testing).
+  /// Resets active dimensions back to [defaults] (useful for testing).
   static void resetGlobal() {
-    global = standard;
+    global = defaults;
   }
 
+  // ── Instance fields ───────────────────────────────────────────────────────
+
+  /// Window width in logical pixels.
+  final double defaultWidth;
+
+  /// Window height in logical pixels.
+  final double defaultHeight;
+
+  /// Minimum window width in logical pixels.
+  final double defaultMinWidth;
+
+  /// Minimum window height in logical pixels.
+  final double defaultMinHeight;
+
+  // ── Constructor ───────────────────────────────────────────────────────────
+
   const MdiDimensions({
-    this.defaultWidth = kStandardDefaultWidth,
-    this.defaultHeight = kStandardDefaultHeight,
+    double? width,
+    double? height,
+    double? minWidth,
+    double? minHeight,
+    double? defaultWidth,
+    double? defaultHeight,
     double? defaultMinWidth,
-    this.defaultMinHeight = kStandardDefaultMinHeight,
-  }) : defaultMinWidth = defaultMinWidth ?? defaultWidth;
+    double? defaultMinHeight,
+  })  : defaultWidth = width ?? defaultWidth ?? _kDefaultWidth,
+        defaultHeight = height ?? defaultHeight ?? _kDefaultHeight,
+        defaultMinWidth = minWidth ?? defaultMinWidth ?? width ?? defaultWidth ?? _kDefaultMinWidth,
+        defaultMinHeight = minHeight ?? defaultMinHeight ?? _kDefaultMinHeight;
+
+  // ── copyWith ──────────────────────────────────────────────────────────────
 
   MdiDimensions copyWith({
+    double? width,
+    double? height,
+    double? minWidth,
+    double? minHeight,
     double? defaultWidth,
     double? defaultHeight,
     double? defaultMinWidth,
     double? defaultMinHeight,
   }) {
     return MdiDimensions(
-      defaultWidth: defaultWidth ?? this.defaultWidth,
-      defaultHeight: defaultHeight ?? this.defaultHeight,
-      defaultMinWidth: defaultMinWidth ?? this.defaultMinWidth,
-      defaultMinHeight: defaultMinHeight ?? this.defaultMinHeight,
+      defaultWidth: width ?? defaultWidth ?? this.defaultWidth,
+      defaultHeight: height ?? defaultHeight ?? this.defaultHeight,
+      defaultMinWidth: minWidth ?? defaultMinWidth ?? this.defaultMinWidth,
+      defaultMinHeight: minHeight ?? defaultMinHeight ?? this.defaultMinHeight,
     );
   }
 
