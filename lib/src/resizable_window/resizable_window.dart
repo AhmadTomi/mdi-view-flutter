@@ -57,14 +57,53 @@ class ResizableWindowState extends State<ResizableWindow> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
+  Widget? _cachedChrome;
+  double? _lastWidth;
+  double? _lastHeight;
+  bool? _lastMaximized;
+  bool? _lastFocus;
+  bool? _lastHover;
+  String? _lastTitle;
+  double? _lastDpr;
+  MdiStyleConfiguration? _lastStyle;
+
   @override
   Widget build(BuildContext context) {
     // Use the total effective pixel ratio (real screen DPR * zoom)
     final double scaledDpr = MediaQuery.devicePixelRatioOf(context);
+    final style = MdiStyleProvider.of(context);
 
     // Snap to the nearest EXACT physical device pixel
     double snap(double value) =>
         (value * scaledDpr).roundToDouble() / scaledDpr;
+
+    final bool chromeNeedsRebuild = _cachedChrome == null ||
+        _lastWidth != _controller.currentWidth ||
+        _lastHeight != _controller.currentHeight ||
+        _lastMaximized != _controller.isMaximized ||
+        _lastFocus != _controller.hasFocus ||
+        _lastHover != _controller.isHovered ||
+        _lastTitle != _controller.title ||
+        _lastDpr != scaledDpr ||
+        _lastStyle != style;
+
+    if (chromeNeedsRebuild) {
+      _lastWidth = _controller.currentWidth;
+      _lastHeight = _controller.currentHeight;
+      _lastMaximized = _controller.isMaximized;
+      _lastFocus = _controller.hasFocus;
+      _lastHover = _controller.isHovered;
+      _lastTitle = _controller.title;
+      _lastDpr = scaledDpr;
+      _lastStyle = style;
+      _cachedChrome = RepaintBoundary(
+        child: Padding(
+          padding: EdgeInsets.all(_controller.widgetPadding),
+          // Pass the snap function down
+          child: _buildWindowChrome(context, snap),
+        ),
+      );
+    }
 
     return Positioned(
       top: snap(_controller.y),
@@ -72,13 +111,7 @@ class ResizableWindowState extends State<ResizableWindow> {
       child: MouseRegion(
         onEnter: (_) => _controller.setHover(true),
         onExit: (_) => _controller.setHover(false),
-        child: RepaintBoundary(
-          child: Padding(
-            padding: EdgeInsets.all(_controller.widgetPadding),
-            // Pass the snap function down
-            child: _buildWindowChrome(context, snap),
-          ),
-        ),
+        child: _cachedChrome!,
       ),
     );
   }

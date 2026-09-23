@@ -324,6 +324,22 @@ class ResizeableWindowController extends ChangeNotifier {
   void dispose() {
     assert(!_isDisposed, 'dispose() called twice on $runtimeType($tag)');
     _isDisposed = true;
+    _ignoreDragContexts.clear();
+    getOtherWindowRects = null;
+    onFocusChange = null;
+    _onClose = null;
+    _toggleMaximize = null;
+    _onPositionChange = null;
+    _onArgumentUpdate = null;
+    _onBringToFront = null;
+    _onStartDrag = null;
+    _onStartResize = null;
+    _onHoverChange = null;
+    _onWorkspacePointerScroll = null;
+    _globalToCanvas = null;
+    onKeyEvent = null;
+    onHover = null;
+    _argument.clear();
     focusScopeNode.dispose();
     hoverNotifier.dispose();
     dragOffsetNotifier.dispose();

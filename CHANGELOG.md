@@ -1,5 +1,9 @@
 ## 0.0.10
 
+* **Drag Performance & RAM Spike Elimination**:
+  - Removed redundant canvas-wide `RepaintBoundary` around `Stack`, preventing multi-megapixel canvas texture re-rasterization on every drag frame.
+  - Memoized `_cachedChrome` in `ResizableWindowState`, completely eliminating widget rebuilding (`Navigator`, route generators, `GestureDetector`, `FocusScope`, `WindowResizeFrame`, `_WindowSurface`) during drag coordinate (`x`, `y`) updates.
+  - Added thorough resource cleanup on `ResizeableWindowController.dispose()`, `MdiController.dispose()`, and `MdiTabController.dispose()` (clearing `_ignoreDragContexts`, `_argument`, `_tabs`, `_hoveredWindows`, and captured closures) to prevent memory leaks.
 * **Dynamic Window Dimensions (`MdiDimensions`)**:
   - Added `MdiDimensions` immutable configuration to manage `defaultWidth`, `defaultHeight`, `defaultMinWidth`, and `defaultMinHeight`.
   - Added direct static properties `MdiDimensions.width`, `MdiDimensions.height`, `MdiDimensions.minWidth`, and `MdiDimensions.minHeight` to read or modify active window dimensions directly anywhere outside the controller or widget tree.

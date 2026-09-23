@@ -42,6 +42,7 @@ class MdiTabController extends ChangeNotifier {
   void dispose() {
     tabScrollController.removeListener(_onScroll);
     tabScrollController.dispose();
+    _tabs.clear();
     super.dispose();
   }
 

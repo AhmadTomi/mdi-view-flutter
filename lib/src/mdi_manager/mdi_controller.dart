@@ -162,6 +162,8 @@ class MdiController extends ChangeNotifier {
       c.dispose();
     }
     _windows.clear();
+    _hoveredWindows.clear();
+    _onCloseCallback = null;
     super.dispose();
   }
 
