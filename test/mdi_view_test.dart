@@ -100,6 +100,17 @@ void main() {
       expect(copy.showDefaultHeader, true);
       expect(copy.draggableBody, false);
     });
+
+    test('hoveredBorderColor defaults to 0.4 alpha of focusedBorderColor and respects copyWith', () {
+      final style = MdiStyleConfiguration(focusedBorderColor: Colors.blue);
+      expect(style.hoveredBorderColor, Colors.blue.withValues(alpha: 0.4));
+
+      final custom = MdiStyleConfiguration(hoveredBorderColor: Colors.purple);
+      expect(custom.hoveredBorderColor, Colors.purple);
+
+      final copy = custom.copyWith(hoveredBorderColor: Colors.green);
+      expect(copy.hoveredBorderColor, Colors.green);
+    });
   });
 
   group('MdiManager Widget Tests', () {
@@ -1454,6 +1465,83 @@ void main() {
       expect(w1.isHovered, false);
       expect(w1.hoverNotifier.value, false);
       expect(onHoverCallbackValue, false);
+
+      controller.dispose();
+    });
+
+    testWidgets('Hovering over an unfocused window changes border to hoveredBorderColor (0.4 alpha)', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      final style = MdiStyleConfiguration(
+        focusedBorderColor: Colors.blue,
+        unfocusedBorderColor: Colors.blueGrey,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MdiManager(
+              controller: controller,
+              style: style,
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'W1', id: '1', x: 20, y: 20, currentWidth: 200, currentHeight: 200),
+        child: (c) => const Text('Window 1 Content'),
+      );
+
+      controller.addWindow(
+        parameter: const ParameterWindow(title: 'W2', id: '2', x: 250, y: 20, currentWidth: 200, currentHeight: 200),
+        child: (c) => const Text('Window 2 Content'),
+      );
+
+      await tester.pumpAndSettle();
+
+      Color getW1BorderColor() {
+        final resizableWindowFinder = find.byWidgetPredicate(
+          (w) => w is ResizableWindow && w.controller == w1,
+        );
+        final containers = tester.widgetList<Container>(
+          find.descendant(
+            of: resizableWindowFinder,
+            matching: find.byType(Container),
+          ),
+        );
+        for (final c in containers) {
+          if (c.color != null && c.padding == EdgeInsets.all(style.borderWidth.toDouble())) {
+            return c.color!;
+          }
+        }
+        throw StateError('Border container not found');
+      }
+
+      // W2 is focused, W1 is unfocused and not hovered
+      expect(w1.hasFocus, false);
+      expect(w1.isHovered, false);
+      expect(getW1BorderColor(), style.unfocusedBorderColor);
+
+      // Hover over W1
+      final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(pointer.hover(const Offset(100, 100)));
+      await tester.pumpAndSettle();
+
+      expect(w1.isHovered, true);
+      expect(getW1BorderColor(), style.hoveredBorderColor);
+      expect(getW1BorderColor(), Colors.blue.withValues(alpha: 0.4));
+
+      // Hover away from W1
+      await tester.sendEventToBinding(pointer.hover(const Offset(500, 500)));
+      await tester.pumpAndSettle();
+
+      expect(w1.isHovered, false);
+      expect(getW1BorderColor(), style.unfocusedBorderColor);
 
       controller.dispose();
     });

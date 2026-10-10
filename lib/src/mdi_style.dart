@@ -38,6 +38,7 @@ class MdiStyleConfiguration {
   // ── Border & chrome ───────────────────────────────────────────────────────
   final Color focusedBorderColor;
   final Color unfocusedBorderColor;
+  final Color hoveredBorderColor;
   final Color maximizedBorderColor;
   final int borderWidth;
   final int borderRadius;
@@ -77,6 +78,7 @@ class MdiStyleConfiguration {
     required this.gap,
     required this.focusedBorderColor,
     required this.unfocusedBorderColor,
+    required this.hoveredBorderColor,
     required this.maximizedBorderColor,
     required this.windowBackgroundColor,
     required this.mdiBackgroundColor,
@@ -103,6 +105,7 @@ class MdiStyleConfiguration {
     int gap = 1,
     Color focusedBorderColor = Colors.blue,
     Color unfocusedBorderColor = Colors.blueGrey,
+    Color? hoveredBorderColor,
     Color maximizedBorderColor = Colors.blueGrey,
     Color windowBackgroundColor = Colors.white,
     Color mdiBackgroundColor = Colors.grey,
@@ -128,6 +131,8 @@ class MdiStyleConfiguration {
       gap: gap,
       focusedBorderColor: focusedBorderColor,
       unfocusedBorderColor: unfocusedBorderColor,
+      hoveredBorderColor:
+          hoveredBorderColor ?? focusedBorderColor.withValues(alpha: 0.4),
       maximizedBorderColor: maximizedBorderColor,
       windowBackgroundColor: windowBackgroundColor,
       mdiBackgroundColor: mdiBackgroundColor,
@@ -158,6 +163,7 @@ class MdiStyleConfiguration {
     int? gap,
     Color? focusedBorderColor,
     Color? unfocusedBorderColor,
+    Color? hoveredBorderColor,
     Color? maximizedBorderColor,
     Color? windowBackgroundColor,
     Color? mdiBackgroundColor,
@@ -184,6 +190,8 @@ class MdiStyleConfiguration {
         focusedBorderColor: focusedBorderColor ?? this.focusedBorderColor,
         unfocusedBorderColor:
         unfocusedBorderColor ?? this.unfocusedBorderColor,
+        hoveredBorderColor:
+        hoveredBorderColor ?? this.hoveredBorderColor,
         maximizedBorderColor:
         maximizedBorderColor ?? this.maximizedBorderColor,
         windowBackgroundColor:
@@ -219,6 +227,7 @@ class MdiStyleConfiguration {
     return gap == other.gap &&
         focusedBorderColor == other.focusedBorderColor &&
         unfocusedBorderColor == other.unfocusedBorderColor &&
+        hoveredBorderColor == other.hoveredBorderColor &&
         maximizedBorderColor == other.maximizedBorderColor &&
         windowBackgroundColor == other.windowBackgroundColor &&
         mdiBackgroundColor == other.mdiBackgroundColor &&
@@ -246,6 +255,7 @@ class MdiStyleConfiguration {
     gap,
     focusedBorderColor,
     unfocusedBorderColor,
+    hoveredBorderColor,
     maximizedBorderColor,
     windowBackgroundColor,
     mdiBackgroundColor,

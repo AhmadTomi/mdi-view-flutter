@@ -320,6 +320,8 @@ class _WindowSurface extends StatelessWidget {
         ? style.maximizedBorderColor
         : controller.hasFocus
         ? style.focusedBorderColor
+        : controller.isHovered
+        ? style.hoveredBorderColor
         : style.unfocusedBorderColor;
 
     return SizedBox.expand(
