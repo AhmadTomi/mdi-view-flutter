@@ -1749,6 +1749,104 @@ void main() {
       controller.dispose();
     });
 
+    test('Snapping never produces negative coordinates when other window is near canvas origin', () {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 800);
+
+      // W1 placed at x = 50, y = 50
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 50,
+          y: 50,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (_) => Container(),
+      );
+
+      // W2 has width 100.
+      // If W2 is at x = 0, its right edge is 100.
+      // If W2 is dragged so right edge is near W1.left (50), targetX = 50 - 100 = -50.
+      // The snap system must reject this negative coordinate and keep x >= 0!
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W2',
+          id: '2',
+          x: 0,
+          y: 0,
+          currentWidth: 100,
+          currentHeight: 100,
+          minWidth: 50,
+          minHeight: 50,
+        ),
+        child: (_) => Container(),
+      );
+
+      // Position W2 so that its right edge (55) is near W1.left (50) -> diff = 5 < 12
+      // targetX would be 50 - 100 = -50
+      w2.x = 0; // clamped to 0 during drag
+      w2.y = 0;
+      w2.snapWindowPosition();
+
+      // Must NOT be negative
+      expect(w2.x >= 0.0, true);
+      expect(w2.y >= 0.0, true);
+      expect(w2.x, 0.0);
+      expect(w2.y, 0.0);
+
+      controller.dispose();
+    });
+
+    test('Snapping selects the closest target (minimum distance)', () {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 800);
+
+      // Other window at x = 11, y = 11
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W1',
+          id: '1',
+          x: 11,
+          y: 11,
+          currentWidth: 200,
+          currentHeight: 200,
+          minWidth: 100,
+          minHeight: 100,
+        ),
+        child: (_) => Container(),
+      );
+
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'W2',
+          id: '2',
+          x: 2,
+          y: 2,
+          currentWidth: 100,
+          currentHeight: 100,
+          minWidth: 50,
+          minHeight: 50,
+        ),
+        child: (_) => Container(),
+      );
+
+      // w2 is at (2, 2).
+      // Distance to canvas boundary 0 is 2.0 px.
+      // Distance to W1.left (11) is |2 - 11| = 9.0 px.
+      // Both are within threshold (12.0), but canvas boundary (0.0) is closer (2.0 < 9.0).
+      w2.snapWindowPosition();
+      expect(w2.x, 0.0);
+      expect(w2.y, 0.0);
+
+      controller.dispose();
+    });
+
     test('Horizontal resize snaps to multiples of minWidth within snapRange', () {
       final controller = MdiController();
       controller.init();
@@ -2944,6 +3042,229 @@ void main() {
       expect(ParameterWindow.getWidthScale(1000, custom), 2); // 1006 ~/ 500 = 2
       expect(ParameterWindow.getWidthScale(400, custom), 1); // 406 ~/ 500 = 0 -> clamped to 1
       expect(ParameterWindow.getHeightScale(500, custom), 0); // 506 ~/ 600 = 0
+    });
+  });
+
+  group('MdiTab Drag & Reorder Tests', () {
+    test('MdiTabController drag lifecycle updates state and moveTab reorders tabs', () {
+      final tabCtrl = MdiTabController();
+      tabCtrl.init();
+
+      final w1 = ResizeableWindowController(
+        parameter: const ParameterWindow(title: 'W1', id: '1'),
+        child: (_) => const SizedBox(),
+      );
+      final w2 = ResizeableWindowController(
+        parameter: const ParameterWindow(title: 'W2', id: '2'),
+        child: (_) => const SizedBox(),
+      );
+      final w3 = ResizeableWindowController(
+        parameter: const ParameterWindow(title: 'W3', id: '3'),
+        child: (_) => const SizedBox(),
+      );
+
+      tabCtrl.addTab(w1.tag, w1);
+      tabCtrl.addTab(w2.tag, w2);
+      tabCtrl.addTab(w3.tag, w3);
+
+      expect(tabCtrl.tabControllers.map((c) => c.tag).toList(), [w1.tag, w2.tag, w3.tag]);
+
+      // Start dragging tab 0
+      tabCtrl.startTabDrag(
+        index: 0,
+        pointerLocalX: 20.0,
+        grabOffsetX: 10.0,
+        tabWidth: 80.0,
+        tabWidths: [80.0, 80.0, 80.0],
+      );
+
+      expect(tabCtrl.isDraggingTab, true);
+      expect(tabCtrl.draggedTabIndex, 0);
+      expect(tabCtrl.dropTargetIndex, 0);
+      expect(tabCtrl.draggedTabTag, w1.tag);
+
+      // Move so tabCenter lands in slot 1:
+      // slot 0 is [0..80, mid 40], slot 1 is [80..160, mid 120]
+      // tabLeft = pointerLocalX - grabOffsetX = 70 - 10 = 60
+      // tabCenter = 60 + 40 = 100 (40 <= 100 < 120 -> slot 1)
+      tabCtrl.updateTabDrag(pointerLocalX: 70.0, scrollOffset: 0.0);
+      expect(tabCtrl.dropTargetIndex, 1);
+
+      // End drag -> W1 moved to index 1
+      tabCtrl.endTabDrag();
+      expect(tabCtrl.isDraggingTab, false);
+      expect(tabCtrl.tabControllers.map((c) => c.tag).toList(), [w2.tag, w1.tag, w3.tag]);
+
+      tabCtrl.dispose();
+      w1.dispose();
+      w2.dispose();
+      w3.dispose();
+    });
+
+    test('MdiTabController calculateDropTargetIndex accurately maps content coordinate to slot', () {
+      final tabCtrl = MdiTabController();
+      tabCtrl.init();
+
+      final w1 = ResizeableWindowController(
+        parameter: const ParameterWindow(title: 'W1', id: '1'),
+        child: (_) => const SizedBox(),
+      );
+      final w2 = ResizeableWindowController(
+        parameter: const ParameterWindow(title: 'W2', id: '2'),
+        child: (_) => const SizedBox(),
+      );
+      final w3 = ResizeableWindowController(
+        parameter: const ParameterWindow(title: 'W3', id: '3'),
+        child: (_) => const SizedBox(),
+      );
+      tabCtrl.addTab(w1.tag, w1);
+      tabCtrl.addTab(w2.tag, w2);
+      tabCtrl.addTab(w3.tag, w3);
+
+      tabCtrl.startTabDrag(
+        index: 0,
+        pointerLocalX: 0.0,
+        grabOffsetX: 0.0,
+        tabWidth: 100.0,
+        tabWidths: [100.0, 100.0, 100.0],
+      );
+
+      // Slots: 0 [0..100, mid 50], 1 [100..200, mid 150], 2 [200..300, mid 250]
+      expect(tabCtrl.calculateDropTargetIndex(20.0), 0);
+      expect(tabCtrl.calculateDropTargetIndex(49.0), 0);
+      expect(tabCtrl.calculateDropTargetIndex(51.0), 1);
+      expect(tabCtrl.calculateDropTargetIndex(140.0), 1);
+      expect(tabCtrl.calculateDropTargetIndex(151.0), 2);
+      expect(tabCtrl.calculateDropTargetIndex(290.0), 2);
+
+      tabCtrl.cancelTabDrag();
+      expect(tabCtrl.isDraggingTab, false);
+
+      tabCtrl.dispose();
+      w1.dispose();
+      w2.dispose();
+      w3.dispose();
+    });
+
+    testWidgets('MdiTabWidget dragging tab reorders tabs accurately under 1.0 scale', (tester) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              height: 600,
+              child: MdiManager(controller: controller),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'Tab 1', id: '1'),
+        child: (_) => const SizedBox(),
+      );
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'Tab 2', id: '2'),
+        child: (_) => const SizedBox(),
+      );
+      await tester.pumpAndSettle();
+
+      final tabCtrl = controller.tabMenuController;
+      expect(tabCtrl.tabControllers.map((c) => c.tag).toList(), [w1.tag, w2.tag]);
+
+      // Find the first tab widget in the tab bar
+      final tab1Finder = find.descendant(
+        of: find.byType(MdiTabWidget),
+        matching: find.text('Tab 1'),
+      );
+      expect(tab1Finder, findsOneWidget);
+
+      final tab1Center = tester.getCenter(tab1Finder);
+
+      // Drag Tab 1 to the right past Tab 2
+      final gesture = await tester.startGesture(tab1Center);
+      await tester.pump();
+
+      // Move 150 pixels to the right
+      await gesture.moveBy(const Offset(150, 0));
+      await tester.pump();
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // Verify order has changed: Tab 2 is now first, Tab 1 is second
+      expect(tabCtrl.tabControllers.map((c) => c.tag).toList(), [w2.tag, w1.tag]);
+
+      controller.dispose();
+    });
+
+    testWidgets('MdiTabWidget dragging tab reorders tabs accurately under 170% zoom/scale', (tester) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(1000, 1000);
+
+      const double zoomScale = 1.7;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Transform.scale(
+              scale: zoomScale,
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 1000,
+                height: 1000,
+                child: MdiManager(controller: controller),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final w1 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'Tab 1', id: '1'),
+        child: (_) => const SizedBox(),
+      );
+      final w2 = controller.addWindow(
+        parameter: const ParameterWindow(title: 'Tab 2', id: '2'),
+        child: (_) => const SizedBox(),
+      );
+      await tester.pumpAndSettle();
+
+      final tabCtrl = controller.tabMenuController;
+      expect(tabCtrl.tabControllers.map((c) => c.tag).toList(), [w1.tag, w2.tag]);
+
+      final tab1Finder = find.descendant(
+        of: find.byType(MdiTabWidget),
+        matching: find.text('Tab 1'),
+      );
+      expect(tab1Finder, findsOneWidget);
+
+      final tab1Center = tester.getCenter(tab1Finder);
+
+      // Start drag on Tab 1
+      final gesture = await tester.startGesture(tab1Center);
+      await tester.pump();
+
+      // Drag 250 physical pixels to the right (under 1.7x zoom)
+      await gesture.moveBy(const Offset(250, 0));
+      await tester.pump();
+
+      // Floating tab should be active during drag
+      expect(tabCtrl.isDraggingTab, true);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // Tab 1 reordered after Tab 2
+      expect(tabCtrl.isDraggingTab, false);
+      expect(tabCtrl.tabControllers.map((c) => c.tag).toList(), [w2.tag, w1.tag]);
+
+      controller.dispose();
     });
   });
 }

@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'src/mdi_tab/mdi_tab.dart';
+export 'src/mdi_tab/mdi_tab.dart';
 
 part 'src/mdi_dimensions.dart';
 part 'src/mdi_style.dart';

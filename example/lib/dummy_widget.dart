@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mdi_view/mdi_view.dart';
@@ -43,18 +41,18 @@ class _DummyWidgetState extends State<DummyWidget> {
     }
   }
 
-  bool _onKeyEvent(KeyEvent) {
+  bool _onKeyEvent(KeyEvent event) {
     if (!isFocused) return false;
-    if (KeyEvent is! KeyDownEvent) return false;
-    if (KeyEvent.logicalKey == LogicalKeyboardKey.f2) {
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey == LogicalKeyboardKey.f2) {
       if (mounted) {
         setState(() {
-          print("HIT F2");
+          debugPrint("HIT F2");
         });
       }
     }
-    if (KeyEvent.logicalKey == LogicalKeyboardKey.f4) {
-      print("HIT F4");
+    if (event.logicalKey == LogicalKeyboardKey.f4) {
+      debugPrint("HIT F4");
     }
     return false;
   }
@@ -132,26 +130,5 @@ class _DummyWidgetState extends State<DummyWidget> {
         ),
       ),
     );
-  }
-}
-
-class _Debouncer {
-  final int milliseconds;
-  Timer? _timer;
-
-  _Debouncer({required this.milliseconds});
-
-  void run(VoidCallback action) {
-    // If a timer is already active, cancel it
-    if (_timer != null) {
-      _timer!.cancel();
-    }
-
-    // Start a new timer
-    _timer = Timer(Duration(milliseconds: milliseconds), action);
-  }
-
-  void dispose() {
-    _timer?.cancel();
   }
 }

@@ -2,9 +2,9 @@ part of '../../mdi_view.dart';
 
 // ── Callback typedefs ─────────────────────────────────────────────────────────
 
-typedef _ScreenAction = void Function(void Function(Size screenSize) action);
-typedef _PositionChangeCallback = void Function(Size position, Size size);
-typedef _ArgumentUpdateCallback = void Function(Map<String, dynamic> argument);
+typedef ScreenAction = void Function(void Function(Size screenSize) action);
+typedef PositionChangeCallback = void Function(Size position, Size size);
+typedef ArgumentUpdateCallback = void Function(Map<String, dynamic> argument);
 
 // ── Controller ────────────────────────────────────────────────────────────────
 
@@ -78,9 +78,9 @@ class ResizeableWindowController extends ChangeNotifier {
 
   void Function(bool hasFocus)? onFocusChange;
   void Function(String tag)? _onClose;
-  _ScreenAction? _toggleMaximize;
-  _PositionChangeCallback? _onPositionChange;
-  _ArgumentUpdateCallback? _onArgumentUpdate;
+  ScreenAction? _toggleMaximize;
+  PositionChangeCallback? _onPositionChange;
+  ArgumentUpdateCallback? _onArgumentUpdate;
   void Function()? _onBringToFront;
   void Function(PointerDownEvent event)? _onStartDrag;
   void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? _onStartResize;
@@ -272,9 +272,9 @@ class ResizeableWindowController extends ChangeNotifier {
   void initAction({
     void Function(bool hasFocus)? onFocusChange,
     void Function(String tag)? onClose,
-    _ScreenAction? toggleMaximize,
-    _PositionChangeCallback? onPositionChange,
-    _ArgumentUpdateCallback? onArgumentUpdate,
+    ScreenAction? toggleMaximize,
+    PositionChangeCallback? onPositionChange,
+    ArgumentUpdateCallback? onArgumentUpdate,
     void Function()? onBringToFront,
     void Function(PointerDownEvent event)? onStartDrag,
     void Function(PointerDownEvent event, {EdgeSide? side, CornerSide? corner})? onStartResize,
@@ -684,7 +684,10 @@ class ResizeableWindowController extends ChangeNotifier {
     final otherRects = getOtherWindowRects!();
     const double threshold = 12.0;
 
+    double minDeltaX = threshold;
     double? snappedX;
+
+    double minDeltaY = threshold;
     double? snappedY;
 
     final myLeft = x;
@@ -693,11 +696,13 @@ class ResizeableWindowController extends ChangeNotifier {
     final myBottom = y + currentHeight;
 
     // Canvas boundary snap (0, 0)
-    if (myLeft.abs() < threshold) {
-      snappedX = 0;
+    if (myLeft.abs() < minDeltaX) {
+      minDeltaX = myLeft.abs();
+      snappedX = 0.0;
     }
-    if (myTop.abs() < threshold) {
-      snappedY = 0;
+    if (myTop.abs() < minDeltaY) {
+      minDeltaY = myTop.abs();
+      snappedY = 0.0;
     }
 
     for (final rect in otherRects) {
@@ -706,36 +711,46 @@ class ResizeableWindowController extends ChangeNotifier {
       final oTop = rect.top;
       final oBottom = rect.bottom;
 
-      // X-axis alignment snap (snap left/right to other's left/right)
-      if ((myLeft - oLeft).abs() < threshold) {
-        snappedX = oLeft;
-      } else if ((myLeft - oRight).abs() < threshold) {
-        snappedX = oRight;
-      } else if ((myRight - oLeft).abs() < threshold) {
-        snappedX = oLeft - currentWidth;
-      } else if ((myRight - oRight).abs() < threshold) {
-        snappedX = oRight - currentWidth;
+      // X-axis alignment snap candidates:
+      // (targetX, distance)
+      final xCandidates = [
+        (oLeft, (myLeft - oLeft).abs()),
+        (oRight, (myLeft - oRight).abs()),
+        (oLeft - currentWidth, (myRight - oLeft).abs()),
+        (oRight - currentWidth, (myRight - oRight).abs()),
+      ];
+
+      for (final (targetX, delta) in xCandidates) {
+        if (targetX >= 0.0 && delta < minDeltaX) {
+          minDeltaX = delta;
+          snappedX = targetX;
+        }
       }
 
-      // Y-axis alignment snap (snap top/bottom to other's top/bottom)
-      if ((myTop - oTop).abs() < threshold) {
-        snappedY = oTop;
-      } else if ((myTop - oBottom).abs() < threshold) {
-        snappedY = oBottom;
-      } else if ((myBottom - oTop).abs() < threshold) {
-        snappedY = oTop - currentHeight;
-      } else if ((myBottom - oBottom).abs() < threshold) {
-        snappedY = oBottom - currentHeight;
+      // Y-axis alignment snap candidates:
+      // (targetY, distance)
+      final yCandidates = [
+        (oTop, (myTop - oTop).abs()),
+        (oBottom, (myTop - oBottom).abs()),
+        (oTop - currentHeight, (myBottom - oTop).abs()),
+        (oBottom - currentHeight, (myBottom - oBottom).abs()),
+      ];
+
+      for (final (targetY, delta) in yCandidates) {
+        if (targetY >= 0.0 && delta < minDeltaY) {
+          minDeltaY = delta;
+          snappedY = targetY;
+        }
       }
     }
 
     bool didSnap = false;
     if (snappedX != null) {
-      x = snappedX;
+      x = max(0.0, snappedX);
       didSnap = true;
     }
     if (snappedY != null) {
-      y = snappedY;
+      y = max(0.0, snappedY);
       didSnap = true;
     }
 
@@ -751,12 +766,18 @@ class ResizeableWindowController extends ChangeNotifier {
     const double threshold = 12.0;
 
     final myRight = x + currentWidth;
+    double minDelta = threshold;
     double? snappedRight;
 
     for (final rect in otherRects) {
-      if ((myRight - rect.left).abs() < threshold) {
+      final d1 = (myRight - rect.left).abs();
+      if (d1 < minDelta) {
+        minDelta = d1;
         snappedRight = rect.left;
-      } else if ((myRight - rect.right).abs() < threshold) {
+      }
+      final d2 = (myRight - rect.right).abs();
+      if (d2 < minDelta) {
+        minDelta = d2;
         snappedRight = rect.right;
       }
     }
@@ -778,17 +799,24 @@ class ResizeableWindowController extends ChangeNotifier {
     const double threshold = 12.0;
 
     final myLeft = x;
+    double minDelta = threshold;
     double? snappedLeft;
 
-    if (myLeft.abs() < threshold) {
-      snappedLeft = 0;
-    } else {
-      for (final rect in otherRects) {
-        if ((myLeft - rect.left).abs() < threshold) {
-          snappedLeft = rect.left;
-        } else if ((myLeft - rect.right).abs() < threshold) {
-          snappedLeft = rect.right;
-        }
+    if (myLeft.abs() < minDelta) {
+      minDelta = myLeft.abs();
+      snappedLeft = 0.0;
+    }
+
+    for (final rect in otherRects) {
+      final d1 = (myLeft - rect.left).abs();
+      if (rect.left >= 0.0 && d1 < minDelta) {
+        minDelta = d1;
+        snappedLeft = rect.left;
+      }
+      final d2 = (myLeft - rect.right).abs();
+      if (rect.right >= 0.0 && d2 < minDelta) {
+        minDelta = d2;
+        snappedLeft = rect.right;
       }
     }
 
@@ -796,7 +824,7 @@ class ResizeableWindowController extends ChangeNotifier {
       final rightPos = x + currentWidth;
       final newW = rightPos - snappedLeft;
       if (newW >= _parameter.minWidth && snappedLeft >= 0) {
-        x = snappedLeft;
+        x = max(0.0, snappedLeft);
         currentWidth = newW;
         notifyListeners();
         return true;
@@ -811,12 +839,18 @@ class ResizeableWindowController extends ChangeNotifier {
     const double threshold = 12.0;
 
     final myBottom = y + currentHeight;
+    double minDelta = threshold;
     double? snappedBottom;
 
     for (final rect in otherRects) {
-      if ((myBottom - rect.top).abs() < threshold) {
+      final d1 = (myBottom - rect.top).abs();
+      if (d1 < minDelta) {
+        minDelta = d1;
         snappedBottom = rect.top;
-      } else if ((myBottom - rect.bottom).abs() < threshold) {
+      }
+      final d2 = (myBottom - rect.bottom).abs();
+      if (d2 < minDelta) {
+        minDelta = d2;
         snappedBottom = rect.bottom;
       }
     }
@@ -838,17 +872,24 @@ class ResizeableWindowController extends ChangeNotifier {
     const double threshold = 12.0;
 
     final myTop = y;
+    double minDelta = threshold;
     double? snappedTop;
 
-    if (myTop.abs() < threshold) {
-      snappedTop = 0;
-    } else {
-      for (final rect in otherRects) {
-        if ((myTop - rect.top).abs() < threshold) {
-          snappedTop = rect.top;
-        } else if ((myTop - rect.bottom).abs() < threshold) {
-          snappedTop = rect.bottom;
-        }
+    if (myTop.abs() < minDelta) {
+      minDelta = myTop.abs();
+      snappedTop = 0.0;
+    }
+
+    for (final rect in otherRects) {
+      final d1 = (myTop - rect.top).abs();
+      if (rect.top >= 0.0 && d1 < minDelta) {
+        minDelta = d1;
+        snappedTop = rect.top;
+      }
+      final d2 = (myTop - rect.bottom).abs();
+      if (rect.bottom >= 0.0 && d2 < minDelta) {
+        minDelta = d2;
+        snappedTop = rect.bottom;
       }
     }
 
@@ -856,7 +897,7 @@ class ResizeableWindowController extends ChangeNotifier {
       final bottomPos = y + currentHeight;
       final newH = bottomPos - snappedTop;
       if (newH >= _parameter.minHeight && snappedTop >= 0) {
-        y = snappedTop;
+        y = max(0.0, snappedTop);
         currentHeight = newH;
         notifyListeners();
         return true;

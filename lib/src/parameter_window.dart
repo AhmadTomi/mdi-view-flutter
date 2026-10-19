@@ -175,55 +175,17 @@ class ParameterWindow {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
+    if (other is! ParameterWindow) return false;
 
-    // Toggle this variable to enable or disable all debug prints for this function
-    bool enableDebugPrint = false;
-
-    // Local helper function to keep the checks clean and handle the prefix
-    void logDebug(String message) {
-      if (enableDebugPrint) {
-        print('Debug == [ParameterWindow]: $message');
-      }
-    }
-
-    if (other is! ParameterWindow) {
-      logDebug('other is not a ParameterWindow (is ${other.runtimeType})');
-      return false;
-    }
-
-    // We use a flag so we can check and print ALL differences at once
-    bool isEqual = true;
-
-    if (title != other.title) {
-      logDebug('title mismatch -> this: $title, other: ${other.title}');
-      isEqual = false;
-    }
-    if (!_mapsEqual(argument, other.argument)) {
-      logDebug('argument mismatch -> this: $argument, other: ${other.argument}');
-      isEqual = false;
-    }
-    if (!_mapsEqual(argument, other.argument)) {
-      logDebug('argument mismatch -> this: $argument, other: ${other.argument}');
-      isEqual = false;
-    }
-    if (currentWidth != other.currentWidth) {
-      logDebug('currentWidth mismatch -> this: $currentWidth, other: ${other.currentWidth}');
-      isEqual = false;
-    }
-    if (currentHeight != other.currentHeight) {
-      logDebug('currentHeight mismatch -> this: $currentHeight, other: ${other.currentHeight}');
-      isEqual = false;
-    }
-    if (x != other.x) {
-      logDebug('x mismatch -> this: $x, other: ${other.x}');
-      isEqual = false;
-    }
-    if (y != other.y) {
-      logDebug('y mismatch -> this: $y, other: ${other.y}');
-      isEqual = false;
-    }
-
-    return isEqual;
+    return id == other.id &&
+        title == other.title &&
+        _mapsEqual(argument, other.argument) &&
+        minWidth == other.minWidth &&
+        minHeight == other.minHeight &&
+        currentWidth == other.currentWidth &&
+        currentHeight == other.currentHeight &&
+        x == other.x &&
+        y == other.y;
   }
 
   @override
