@@ -77,7 +77,8 @@ class ResizableWindowState extends State<ResizableWindow> {
     double snap(double value) =>
         (value * scaledDpr).roundToDouble() / scaledDpr;
 
-    final bool chromeNeedsRebuild = _cachedChrome == null ||
+    final bool chromeNeedsRebuild =
+        _cachedChrome == null ||
         _lastWidth != _controller.currentWidth ||
         _lastHeight != _controller.currentHeight ||
         _lastMaximized != _controller.isMaximized ||
@@ -218,76 +219,73 @@ class ResizableWindowState extends State<ResizableWindow> {
 
     return ResizableWindowProvider(
       controller: _controller,
-      child: Padding(
-        padding: EdgeInsets.all(snappedGap),
-        child: FocusScope(
-          node: _controller.focusScopeNode,
-          onKeyEvent: (_, event) {
-            if (event.synthesized || event is! KeyDownEvent) {
-              return KeyEventResult.ignored;
+      child: FocusScope(
+        node: _controller.focusScopeNode,
+        onKeyEvent: (_, event) {
+          if (event.synthesized || event is! KeyDownEvent) {
+            return KeyEventResult.ignored;
+          }
+          return (_controller.onKeyEvent?.call(event) ?? false)
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
+        },
+        onFocusChange: (focused) {
+          void update() {
+            if (mounted) {
+              _onControllerUpdate();
+              _controller.onFocusChange?.call(focused);
             }
-            return (_controller.onKeyEvent?.call(event) ?? false)
-                ? KeyEventResult.handled
-                : KeyEventResult.ignored;
-          },
-          onFocusChange: (focused) {
-            void update() {
-              if (mounted) {
-                _onControllerUpdate();
-                _controller.onFocusChange?.call(focused);
-              }
-            }
+          }
 
-            if (WidgetsBinding.instance.schedulerPhase ==
-                SchedulerPhase.persistentCallbacks) {
-              WidgetsBinding.instance.addPostFrameCallback((_) => update());
-            } else {
-              update();
+          if (WidgetsBinding.instance.schedulerPhase ==
+              SchedulerPhase.persistentCallbacks) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => update());
+          } else {
+            update();
+          }
+        },
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) {
+            if (!_controller.hasFocus) {
+              _controller.requestFocus();
+              _controller.bringToFront();
             }
           },
-          child: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) {
-              if (!_controller.hasFocus) {
-                _controller.requestFocus();
-                _controller.bringToFront();
-              }
-            },
-            child: ColoredBox(
-              color: Colors.transparent,
-              child: Padding(
-                padding: EdgeInsets.all(snappedGap),
-                child: SizedBox(
-                  width: snap(_controller.currentWidth) - 2 * snappedGap,
-                  height: snap(_controller.currentHeight) - 2 * snappedGap,
-                  child: WindowResizeFrame(
-                    controller: _controller,
-                    enabled: !_controller.isMaximized,
-                    child: Stack(
-                      children: [
-                        // ── Window surface ──────────────────────────────────
-                        _WindowSurface(
-                          controller: _controller,
-                          style: style,
-                          radius: radius,
-                          content: style.draggableBody
-                              ? _controller.dragWidget(
-                                  child: windowContentWithScroll,
-                                  canDoubleClick: false,
-                                  useGestureDetector: true,
-                                )
-                              : windowContentWithScroll,
-                        ),
+          child: ColoredBox(
+            color: Colors.transparent,
+            child: Padding(
+              padding: EdgeInsets.all(snappedGap),
+              child: SizedBox(
+                width: snap(_controller.currentWidth) - 2 * snappedGap,
+                height: snap(_controller.currentHeight) - 2 * snappedGap,
+                child: WindowResizeFrame(
+                  controller: _controller,
+                  enabled: !_controller.isMaximized,
+                  child: Stack(
+                    children: [
+                      // ── Window surface ──────────────────────────────────
+                      _WindowSurface(
+                        controller: _controller,
+                        style: style,
+                        radius: radius,
+                        content: style.draggableBody
+                            ? _controller.dragWidget(
+                                child: windowContentWithScroll,
+                                canDoubleClick: false,
+                                useGestureDetector: true,
+                              )
+                            : windowContentWithScroll,
+                      ),
 
-                        // ── Unfocus overlay ─────────────────────────────────
-                        _UnfocusBlocker(
-                          color: style.unfocusBlockerColor,
-                          active: !_controller.hasFocus && !_controller.isHovered,
-                          radius: radius,
-                          controller: _controller,
-                        ),
-                      ],
-                    ),
+                      // ── Unfocus overlay ─────────────────────────────────
+                      _UnfocusBlocker(
+                        color: style.unfocusBlockerColor,
+                        active: !_controller.hasFocus && !_controller.isHovered,
+                        radius: radius,
+                        controller: _controller,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -369,10 +367,7 @@ class _UnfocusBlocker extends StatelessWidget {
     final child = ClipRRect(
       clipBehavior: Clip.antiAlias,
       borderRadius: BorderRadius.circular(radius),
-      child: ColoredBox(
-        color: color,
-        child: const SizedBox.expand(),
-      ),
+      child: ColoredBox(color: color, child: const SizedBox.expand()),
     );
 
     return controller.dragWidget(canDoubleClick: false, child: child);
