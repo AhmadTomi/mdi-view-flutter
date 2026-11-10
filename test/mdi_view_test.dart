@@ -114,6 +114,61 @@ void main() {
   });
 
   group('MdiManager Widget Tests', () {
+    test('setHover on a disposed window controller is a no-op', () {
+      final ctrl = ResizeableWindowController(
+        parameter: const ParameterWindow(title: 'W', id: 'w'),
+        child: (_) => const SizedBox(),
+      );
+      ctrl.dispose();
+      expect(() => ctrl.setHover(true), returnsNormally);
+      expect(() => ctrl.setHover(false), returnsNormally);
+    });
+
+    testWidgets('importLayout removing a hovered window keeps mouse input alive', (
+      WidgetTester tester,
+    ) async {
+      final controller = MdiController();
+      controller.init();
+      controller.screenSize = const Size(800, 600);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: MdiManager(controller: controller)),
+        ),
+      );
+
+      controller.importLayout(
+        [
+          const ParameterWindow(title: 'Old', id: 'old', x: 0, y: 0).toJson(),
+        ],
+        childBuilder: (_) => const Text('Old Content'),
+      );
+      await tester.pumpAndSettle();
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(find.text('Old Content')));
+      addTearDown(mouse.removePointer);
+      await tester.pumpAndSettle();
+
+      // Same ordering as an app applying a template from a popover: the layout
+      // swap runs in a post-frame callback, and a hover change (the popover
+      // under the cursor disappearing) is processed against the old tree.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.importLayout([], childBuilder: (_) => const SizedBox());
+        mouse.moveBy(const Offset(400, 400));
+      });
+      tester.binding.scheduleFrame();
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      await mouse.moveBy(const Offset(-10, -10));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      controller.dispose();
+    });
+
     testWidgets('MdiManager renders and shows windows', (
       WidgetTester tester,
     ) async {

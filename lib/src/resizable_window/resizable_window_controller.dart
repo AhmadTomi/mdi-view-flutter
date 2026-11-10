@@ -362,7 +362,11 @@ class ResizeableWindowController extends ChangeNotifier {
   }
 
   void setHover(bool isHovering) {
-    if (_isHovered == isHovering) return;
+    // The MouseTracker can still deliver enter/exit events to this window's
+    // MouseRegion after the controller is disposed (e.g. importLayout removes
+    // the window while the old render tree is still attached). Throwing from
+    // a MouseTracker callback leaves it stuck and kills all mouse input.
+    if (_isDisposed || _isHovered == isHovering) return;
     _isHovered = isHovering;
     hoverNotifier.value = isHovering;
     notifyListeners();
