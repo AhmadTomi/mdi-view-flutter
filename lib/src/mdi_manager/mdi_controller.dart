@@ -250,8 +250,8 @@ class MdiController extends ChangeNotifier {
     if (parameter.isPositionUnset) {
       final jitter = Random().nextInt(60) - 30; // ±30 px so windows cascade
       parameter = parameter.withPosition(
-        posX: max(0.0, (screenSize.width - parameter.currentWidth) / 2) + jitter,
-        posY: max(0.0, (screenSize.height - parameter.currentHeight) / 2) + jitter,
+        posX: max(0.0, (screenSize.width - parameter.currentWidth) / 2 + jitter),
+        posY: max(0.0, (screenSize.height - parameter.currentHeight) / 2 + jitter),
       );
     }
 
@@ -319,12 +319,20 @@ class MdiController extends ChangeNotifier {
       }) async {
     if (tag.isEmpty) return '';
 
-    if (requestFocusToPrevious && _windows.length >= 2) {
-      final prev = _windows.values.elementAt(_windows.length - 2);
-      WidgetsBinding.instance.addPostFrameCallback((_) => prev.requestFocus());
+    _unregisterWindow(tag);
+
+    // Focus whichever window is on top *after* removal. When a background
+    // window was closed this is the unchanged front window; when the front
+    // window was closed it is the one beneath it.
+    if (requestFocusToPrevious) {
+      final next = frontWindow;
+      if (next != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!next.isDisposed) next.requestFocus();
+        });
+      }
     }
 
-    _unregisterWindow(tag);
     _recalculateMdiSize();
     notifyListeners();
     _onCloseCallback?.call(tag);

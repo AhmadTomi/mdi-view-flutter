@@ -255,7 +255,8 @@ class ResizeableWindowController extends ChangeNotifier {
     y: y,
     currentHeight: currentHeight,
     currentWidth: currentWidth,
-    argument: _argument,
+    // Copy so snapshots (and exportLayout JSON) never alias live state.
+    argument: Map<String, dynamic>.of(_argument),
   );
 
   /// Optional key-event handler installed by the content widget.
@@ -339,7 +340,9 @@ class ResizeableWindowController extends ChangeNotifier {
     _globalToCanvas = null;
     onKeyEvent = null;
     onHover = null;
-    _argument.clear();
+    // Reassign instead of clear(): the old map may still be referenced by
+    // callers that received it via onArgumentUpdate.
+    _argument = {};
     focusScopeNode.dispose();
     hoverNotifier.dispose();
     dragOffsetNotifier.dispose();

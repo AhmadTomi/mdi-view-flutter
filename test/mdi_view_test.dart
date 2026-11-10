@@ -3322,4 +3322,102 @@ void main() {
       controller.dispose();
     });
   });
+
+  group('Regression Tests', () {
+    test('exported layout keeps its argument after windows are disposed', () {
+      final controller = MdiController()..init();
+      controller.addWindow(
+        parameter: const ParameterWindow(
+          title: 'A',
+          id: '1',
+          argument: {'k': 'v'},
+          x: 10,
+          y: 10,
+        ),
+        child: (_) => const SizedBox(),
+      );
+
+      final layout = controller.exportLayout();
+      final snapshot = controller.parameterWindows.first;
+      controller.removeAllWindows();
+
+      expect(layout.first['argument'], {'k': 'v'});
+      expect(snapshot.argument, {'k': 'v'});
+      controller.dispose();
+    });
+
+    test('auto-centred windows never get a negative position', () {
+      final controller = MdiController()..init();
+      controller.screenSize = const Size(200, 200);
+
+      for (var i = 0; i < 50; i++) {
+        final w = controller.addWindow(
+          parameter: ParameterWindow(title: 'W', id: '$i'),
+          child: (_) => const SizedBox(),
+        );
+        expect(w.x, greaterThanOrEqualTo(0.0), reason: 'window $i x');
+        expect(w.y, greaterThanOrEqualTo(0.0), reason: 'window $i y');
+      }
+      controller.dispose();
+    });
+
+    testWidgets('closing a background window keeps the front window focused',
+        (tester) async {
+      final controller = MdiController();
+      await tester.pumpWidget(
+        MaterialApp(home: Scaffold(body: MdiManager(controller: controller))),
+      );
+      controller.init();
+      final a = controller.addWindow(
+        parameter: const ParameterWindow(title: 'A', id: '1', x: 0, y: 0),
+        child: (_) => const SizedBox(),
+      );
+      controller.addWindow(
+        parameter: const ParameterWindow(title: 'B', id: '2', x: 400, y: 0),
+        child: (_) => const SizedBox(),
+      );
+      final c = controller.addWindow(
+        parameter: const ParameterWindow(title: 'C', id: '3', x: 800, y: 0),
+        child: (_) => const SizedBox(),
+      );
+      await tester.pumpAndSettle();
+      c.requestFocus();
+      await tester.pumpAndSettle();
+      expect(c.hasFocus, true);
+
+      a.close();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(controller.frontWindow, c);
+      expect(c.hasFocus, true);
+    });
+
+    testWidgets('closing the front window focuses the next window',
+        (tester) async {
+      final controller = MdiController();
+      await tester.pumpWidget(
+        MaterialApp(home: Scaffold(body: MdiManager(controller: controller))),
+      );
+      controller.init();
+      final a = controller.addWindow(
+        parameter: const ParameterWindow(title: 'A', id: '1', x: 0, y: 0),
+        child: (_) => const SizedBox(),
+      );
+      final b = controller.addWindow(
+        parameter: const ParameterWindow(title: 'B', id: '2', x: 400, y: 0),
+        child: (_) => const SizedBox(),
+      );
+      await tester.pumpAndSettle();
+      b.requestFocus();
+      await tester.pumpAndSettle();
+
+      b.close();
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(controller.frontWindow, a);
+      expect(a.hasFocus, true);
+    });
+  });
 }
